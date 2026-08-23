@@ -13,6 +13,7 @@ import { JwtAuthGuard } from './modules/auth/jwt-auth.guard';
 import { ExhibitionsModule } from './modules/exhibitions/exhibitions.module';
 import { HealthModule } from './modules/health/health.module';
 import { ReferenceModule } from './modules/reference/reference.module';
+import { SyncModule } from './modules/sync/sync.module';
 
 @Module({
   imports: [
@@ -53,6 +54,7 @@ import { ReferenceModule } from './modules/reference/reference.module';
     HealthModule,
     ExhibitionsModule,
     ReferenceModule,
+    SyncModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

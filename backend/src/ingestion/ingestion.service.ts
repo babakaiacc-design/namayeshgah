@@ -349,7 +349,22 @@ export class IngestionService {
     } else if (incomingHasDates && existingHasDates) {
       const differs = record.startDate !== existingStart || record.endDate !== existingEnd;
 
-      if (differs && source.confidence > existingConfidence) {
+      // A source revising its OWN listing is a postponement, not a
+      // disagreement. Section 13 of the brief is exactly this case: the
+      // published dates move and everything downstream must follow. Treating it
+      // as a conflict would freeze the old dates and never reschedule anyone's
+      // reminder. A conflict requires two different sources telling us
+      // different things.
+      const contested = differs && (await this.otherSourcesBacking(run, exhibitionId, source.id, existingStart));
+
+      if (differs && !contested) {
+        await this.recordChange(run, exhibitionId, 'start_date', existingStart, record.startDate, source.id);
+        await this.recordChange(run, exhibitionId, 'end_date', existingEnd, record.endDate, source.id);
+        nextStart = record.startDate;
+        nextEnd = record.endDate;
+        nextStatus = 'CONFIRMED';
+        changed = true;
+      } else if (differs && source.confidence > existingConfidence) {
         await this.recordChange(run, exhibitionId, 'start_date', existingStart, record.startDate, source.id);
         await this.recordChange(run, exhibitionId, 'end_date', existingEnd, record.endDate, source.id);
         nextStart = record.startDate;
@@ -439,6 +454,32 @@ export class IngestionService {
       exhibitionId,
       confidence.toFixed(2),
     ]);
+  }
+
+  /**
+   * Whether any source OTHER than this one currently backs the stored dates.
+   *
+   * Distinguishes a source revising its own listing (a postponement) from two
+   * sources genuinely disagreeing (a conflict).
+   */
+  private async otherSourcesBacking(
+    run: Runner,
+    exhibitionId: string,
+    sourceId: string,
+    startDate: string | undefined,
+  ): Promise<boolean> {
+    if (!startDate) return false;
+
+    const [row] = await run(
+      `SELECT count(DISTINCT r.source_id)::int AS n
+       FROM exhibition_source_records r
+       WHERE r.exhibition_id = $1
+         AND r.source_id <> $2
+         AND r.source_start_date = $3::date`,
+      [exhibitionId, sourceId, startDate],
+    );
+
+    return Number(row?.n ?? 0) > 0;
   }
 
   private async recordChange(

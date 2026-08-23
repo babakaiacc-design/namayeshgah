@@ -3,8 +3,7 @@ import { DataSource } from 'typeorm';
 import configuration from '../config/configuration';
 import { DirectFetcher } from '../common/http/direct-fetcher';
 import { dataSourceOptions } from '../database/data-source';
-import { EventroSource } from './adapters/eventro.source';
-import { ExhibitionSource } from './adapters/exhibition-source';
+import { ADAPTERS, DEFAULT_LOCATIONS, buildAdapter, knownSources } from './adapter-registry';
 import { IngestionService } from './ingestion.service';
 import { Normalizer } from './normalizer/normalizer';
 import { DbReferenceResolver } from './normalizer/reference-resolver';
@@ -26,15 +25,6 @@ interface Args {
   dryRun: boolean;
   maxDetails?: number;
 }
-
-const ADAPTERS: Record<string, () => ExhibitionSource> = {
-  eventro: () => new EventroSource(),
-};
-
-/** Locations to pull per source, using each source's own slugs. */
-const DEFAULT_LOCATIONS: Record<string, string[]> = {
-  eventro: ['tehran'],
-};
 
 function parseArgs(argv: string[]): Args {
   const args: Args = { dryRun: false };
@@ -61,14 +51,14 @@ async function main(): Promise<number> {
 
   if (!args.source) {
     console.error('usage: npm run sync -- --source=<name> [--dry-run] [--locations=a,b]');
-    console.error(`known sources: ${Object.keys(ADAPTERS).join(', ')}`);
+    console.error(`known sources: ${knownSources().join(', ')}`);
     return 2;
   }
 
-  const buildAdapter = ADAPTERS[args.source];
-  if (!buildAdapter) {
+  const adapter = buildAdapter(args.source);
+  if (!adapter) {
     console.error(`no adapter for source "${args.source}"`);
-    console.error(`known sources: ${Object.keys(ADAPTERS).join(', ')}`);
+    console.error(`known sources: ${knownSources().join(', ')}`);
     return 2;
   }
 
@@ -93,7 +83,6 @@ async function main(): Promise<number> {
       return 2;
     }
 
-    const adapter = buildAdapter();
     const fetcher = new DirectFetcher({
       userAgent: config.fetch.userAgent,
       timeoutMs: config.fetch.timeoutMs,
