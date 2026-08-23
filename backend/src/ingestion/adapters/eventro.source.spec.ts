@@ -10,6 +10,7 @@ const fixture = (name: string): string =>
 const TEHRAN_LISTING = fixture('eventro-tehran.html');
 const GERMANY_LISTING = fixture('eventro-germany.html');
 const EVENT_DETAIL = fixture('eventro-event-53066.html');
+const MONTH_ONLY = fixture('eventro-month-only-date.html');
 
 describe('parseEnglishDate', () => {
   it('parses the listing date format', () => {
@@ -102,6 +103,28 @@ describe('EventroSource listing parser', () => {
     const items = source.parseListing(TEHRAN_LISTING, 'tehran');
     // Everything inside the results container links to /events/{id}.
     expect(items.every((item) => /\/events\/\d+$/.test(item.sourceUrl))).toBe(true);
+  });
+});
+
+describe('EventroSource with a month-only date', () => {
+  const source = new EventroSource();
+
+  // Real case from the live listing: eventro states "مرداد 1405 / July 2026"
+  // for an event whose exact day is not fixed.
+  it('refuses to invent a day and records a warning', () => {
+    const warnings: string[] = [];
+    const [item] = source.parseListing(MONTH_ONLY, 'tehran', warnings);
+
+    expect(item.sourceExternalId).toBe('53064');
+    expect(item.startDate).toBeUndefined();
+    expect(warnings.some((w) => w.includes('July 2026'))).toBe(true);
+  });
+
+  it('still keeps the record, with the raw date preserved', () => {
+    const [item] = source.parseListing(MONTH_ONLY, 'tehran');
+
+    expect(item.title).toContain('مبلمان');
+    expect(item.rawStartDate).toContain('مرداد');
   });
 });
 

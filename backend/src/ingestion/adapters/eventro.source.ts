@@ -218,6 +218,14 @@ export class EventroSource implements ExhibitionSource {
       };
     }
 
+    // "داخلی، بین المللی" — the site states this outright, so the normalizer
+    // never has to infer "international" from words in the title.
+    const level = labelled.get('سطح برگزاری');
+    if (level) raw.extra = { ...raw.extra, level };
+
+    const admission = labelled.get('نوع ورودی');
+    if (admission) raw.extra = { ...raw.extra, admission };
+
     const jalaliStart = labelled.get('تاریخ شروع');
     if (jalaliStart) raw.rawStartDate = jalaliStart;
     const jalaliEnd = labelled.get('تاریخ پایان');

@@ -1,7 +1,13 @@
 import { config as loadEnv } from 'dotenv';
 import { DataSource, DataSourceOptions } from 'typeorm';
 
+import { configurePostgresDateParsing } from '../common/dates/pg-date';
+
 loadEnv();
+
+// Must run before any pool is created, so DATE columns come back as plain
+// 'YYYY-MM-DD' strings rather than local-midnight Date objects.
+configurePostgresDateParsing();
 
 const bool = (value: string | undefined, fallback: boolean): boolean =>
   value === undefined ? fallback : value.toLowerCase() === 'true';

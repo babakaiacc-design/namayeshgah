@@ -1,6 +1,10 @@
 import { Client } from 'pg';
 import { DataSource } from 'typeorm';
 
+import { configurePostgresDateParsing } from '../src/common/dates/pg-date';
+
+configurePostgresDateParsing();
+
 /**
  * Gives an integration spec its own database.
  *

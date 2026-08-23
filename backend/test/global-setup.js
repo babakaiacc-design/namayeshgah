@@ -5,6 +5,7 @@
  * container) this does nothing and the existing database is used.
  */
 const path = require('path');
+const { rmSync } = require('fs');
 const EmbeddedPostgresModule = require('embedded-postgres');
 
 const EmbeddedPostgres = EmbeddedPostgresModule.default || EmbeddedPostgresModule;
@@ -18,8 +19,14 @@ module.exports = async () => {
     return;
   }
 
+  // A previous run that was killed before teardown (piping jest output into
+  // head can SIGPIPE it) leaves a data directory behind, and initialise() then
+  // fails or hangs. Clearing it first makes the suite self-healing.
+  const databaseDir = path.join(__dirname, '..', '.pgdata');
+  rmSync(databaseDir, { recursive: true, force: true });
+
   const pg = new EmbeddedPostgres({
-    databaseDir: path.join(__dirname, '..', '.pgdata'),
+    databaseDir,
     user: 'postgres',
     password: 'postgres',
     port: PORT,
