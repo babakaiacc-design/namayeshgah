@@ -8,7 +8,11 @@ import { LoggerModule } from 'nestjs-pino';
 import configuration from './config/configuration';
 import { validateEnv } from './config/env.validation';
 import { dataSourceOptions } from './database/data-source';
+import { AuthModule } from './modules/auth/auth.module';
+import { JwtAuthGuard } from './modules/auth/jwt-auth.guard';
+import { ExhibitionsModule } from './modules/exhibitions/exhibitions.module';
 import { HealthModule } from './modules/health/health.module';
+import { ReferenceModule } from './modules/reference/reference.module';
 
 @Module({
   imports: [
@@ -45,8 +49,16 @@ import { HealthModule } from './modules/health/health.module';
 
     ThrottlerModule.forRoot([{ ttl: 60000, limit: 120 }]),
 
+    AuthModule,
     HealthModule,
+    ExhibitionsModule,
+    ReferenceModule,
   ],
-  providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
+  providers: [
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
+    // Applied globally, then relaxed per endpoint with @AllowGuest(). Making
+    // authentication the default means a new endpoint cannot leak by omission.
+    { provide: APP_GUARD, useClass: JwtAuthGuard },
+  ],
 })
 export class AppModule {}

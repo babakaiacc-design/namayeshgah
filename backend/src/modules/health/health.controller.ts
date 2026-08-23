@@ -3,6 +3,10 @@ import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 
+import { AllowGuest } from '../auth/jwt-auth.guard';
+
+// The scheduled keepalive has no token, so this must stay open.
+@AllowGuest()
 @ApiTags('health')
 @Controller('health')
 export class HealthController {

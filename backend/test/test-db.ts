@@ -6,14 +6,14 @@ import { configurePostgresDateParsing } from '../src/common/dates/pg-date';
 configurePostgresDateParsing();
 
 /**
- * Gives an integration spec its own database.
+ * Creates an empty database for one spec and returns its connection url.
  *
  * Sharing one database across spec files makes them order-dependent: the seed
  * asserts "no exhibitions exist", which a spec that ran earlier would break.
  * A database per spec keeps each file independent and lets them assert on
  * absolute counts.
  */
-export async function createTestDataSource(name: string): Promise<DataSource> {
+export async function createTestDatabase(name: string): Promise<string> {
   const baseUrl = process.env.DATABASE_URL;
   if (!baseUrl) {
     throw new Error('DATABASE_URL is not set — test/global-setup.js should have provided one');
@@ -39,10 +39,19 @@ export async function createTestDataSource(name: string): Promise<DataSource> {
   }
 
   url.pathname = `/${dbName}`;
+  return url.toString();
+}
 
+/** Creates the database, connects, and applies every migration. */
+export async function createTestDataSource(name: string): Promise<DataSource> {
+  const url = await createTestDatabase(name);
+  return migratedDataSource(url);
+}
+
+export async function migratedDataSource(url: string): Promise<DataSource> {
   const dataSource = new DataSource({
     type: 'postgres',
-    url: url.toString(),
+    url,
     ssl: false,
     migrations: [__dirname + '/../src/database/migrations/*.ts'],
     migrationsTableName: 'migrations',
