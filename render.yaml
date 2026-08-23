@@ -1,0 +1,57 @@
+# Render Blueprint — free tier.
+#
+# Note there is deliberately no cron job or background worker here: both are
+# paid features on Render. Scheduling lives in .github/workflows/sync.yml.
+# See docs/ARCHITECTURE.md section 3.
+
+services:
+  - type: web
+    name: exhibition-reminder-api
+    runtime: node
+    plan: free
+    region: frankfurt
+    rootDir: backend
+    buildCommand: npm ci && npm run build
+    startCommand: npm run migration:run && npm run start:prod
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: API_PREFIX
+        value: api/v1
+      - key: LOG_LEVEL
+        value: info
+
+      # Supabase pooler URI (port 6543). Set in the Render dashboard.
+      - key: DATABASE_URL
+        sync: false
+      - key: DB_SSL
+        value: 'true'
+      # MUST stay false behind the transaction-mode pooler, otherwise every
+      # query fails with "prepared statement already exists".
+      - key: DB_PREPARE
+        value: 'false'
+      - key: DB_POOL_SIZE
+        value: '5'
+      - key: DB_SYNCHRONIZE
+        value: 'false'
+
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 90d
+
+      # Must match the SYNC_SECRET repository secret in GitHub Actions, so it
+      # is set by hand rather than generated.
+      - key: SYNC_SECRET
+        sync: false
+
+      - key: FETCH_TIMEOUT_MS
+        value: '60000'
+      - key: FETCH_RATE_LIMIT_PER_SEC
+        value: '1'
+      - key: FETCH_MAX_RETRIES
+        value: '3'
+
+      - key: RELAY_ENABLED
+        value: 'false'

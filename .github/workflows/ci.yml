@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: exhibition_reminder_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/exhibition_reminder_test
+      DB_SSL: 'false'
+      JWT_SECRET: test-secret-that-is-long-enough-for-validation-checks
+      SYNC_SECRET: test-sync-secret-that-is-long-enough-for-checks
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Integration tests (migrations, schema, seed)
+        # Uses the postgres service above rather than the embedded server that
+        # local runs fall back to — see test/global-setup.js.
+        run: npm run test:integration
+
+      - name: Seed applies cleanly
+        run: |
+          npm run migration:run
+          npm run seed

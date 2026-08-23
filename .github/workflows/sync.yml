@@ -1,0 +1,67 @@
+name: Scheduled sync
+
+# Render's free plan has neither cron jobs nor background workers, so the
+# scheduler lives here instead. This workflow does double duty: it triggers the
+# ingestion run AND keeps the stack warm — the free Render service sleeps after
+# 15 minutes idle and a free Supabase project pauses after 7 days idle.
+# See docs/ARCHITECTURE.md section 3.
+
+on:
+  schedule:
+    # Every 12 hours. GitHub cron is UTC.
+    - cron: '0 3,15 * * *'
+  workflow_dispatch:
+    inputs:
+      source:
+        description: 'Sync a single source only (blank = all enabled sources)'
+        required: false
+        type: string
+
+concurrency:
+  group: exhibition-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Wake the service
+        # A sleeping Render instance needs roughly 50s to boot. Poll rather
+        # than sleeping a fixed amount so a warm service costs one request.
+        run: |
+          for attempt in $(seq 1 20); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 60 \
+              "${{ secrets.API_BASE_URL }}/health" || echo 000)
+            echo "attempt $attempt -> HTTP $code"
+            if [ "$code" = "200" ]; then
+              echo "service is awake"
+              exit 0
+            fi
+            sleep 15
+          done
+          echo "service did not wake in time"
+          exit 1
+
+      - name: Trigger ingestion
+        run: |
+          payload='{}'
+          if [ -n "${{ inputs.source }}" ]; then
+            payload="{\"source\":\"${{ inputs.source }}\"}"
+          fi
+
+          response=$(curl -s -w '\n%{http_code}' --max-time 900 \
+            -X POST "${{ secrets.API_BASE_URL }}/api/v1/internal/sync" \
+            -H 'Content-Type: application/json' \
+            -H "X-Sync-Secret: ${{ secrets.SYNC_SECRET }}" \
+            -d "$payload")
+
+          body=$(echo "$response" | sed '$d')
+          code=$(echo "$response" | tail -n1)
+
+          echo "HTTP $code"
+          echo "$body"
+
+          if [ "$code" != "200" ] && [ "$code" != "201" ]; then
+            exit 1
+          fi

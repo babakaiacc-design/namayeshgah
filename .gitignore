@@ -1,0 +1,50 @@
+# dependencies
+node_modules/
+.pnp/
+.pnp.js
+
+# build output
+dist/
+build/
+out/
+.next/
+
+# environment — NEVER commit real secrets
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# logs
+*.log
+npm-debug.log*
+logs/
+
+# test / coverage
+coverage/
+*.lcov
+
+# editor / OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Android
+mobile/local.properties
+mobile/.gradle/
+mobile/build/
+mobile/**/build/
+mobile/captures/
+*.keystore
+!debug.keystore
+*.jks
+google-services.json
+
+# scratch
+tmp/
+.cache/
+
+# embedded postgres data dir (test only)
+.pgdata/
