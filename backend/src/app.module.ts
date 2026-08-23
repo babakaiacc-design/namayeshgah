@@ -11,8 +11,10 @@ import { dataSourceOptions } from './database/data-source';
 import { AuthModule } from './modules/auth/auth.module';
 import { JwtAuthGuard } from './modules/auth/jwt-auth.guard';
 import { ExhibitionsModule } from './modules/exhibitions/exhibitions.module';
+import { FavoritesModule } from './modules/favorites/favorites.module';
 import { HealthModule } from './modules/health/health.module';
 import { ReferenceModule } from './modules/reference/reference.module';
+import { RemindersModule } from './modules/reminders/reminders.module';
 import { SyncModule } from './modules/sync/sync.module';
 
 @Module({
@@ -54,6 +56,8 @@ import { SyncModule } from './modules/sync/sync.module';
     HealthModule,
     ExhibitionsModule,
     ReferenceModule,
+    RemindersModule,
+    FavoritesModule,
     SyncModule,
   ],
   providers: [

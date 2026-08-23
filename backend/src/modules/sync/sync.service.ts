@@ -8,6 +8,7 @@ import { IngestSummary, IngestionService } from '../../ingestion/ingestion.servi
 import { Normalizer } from '../../ingestion/normalizer/normalizer';
 import { DbReferenceResolver } from '../../ingestion/normalizer/reference-resolver';
 import { ChangeProcessingResult, ChangeProcessor } from './change-processor';
+import { returningRow } from '../../common/db/returning';
 
 export interface SyncOptions {
   /** Sync one source only. Omitted means every enabled source with an adapter. */
@@ -345,17 +346,21 @@ export class SyncService {
     error?: string,
   ): Promise<void> {
     if (status === 'FAILED') {
-      const [row] = await this.dataSource.query(
-        `UPDATE sources SET last_failure_at = now(), last_error = $2,
-                consecutive_failures = consecutive_failures + 1, updated_at = now()
-         WHERE id = $1
-         RETURNING consecutive_failures`,
-        [source.id, error ?? 'unknown error'],
+      // Without returningRow this destructure yields the inner rows array
+      // rather than a row, so the escalation below never fired.
+      const row = returningRow<{ consecutive_failures: number }>(
+        await this.dataSource.query(
+          `UPDATE sources SET last_failure_at = now(), last_error = $2,
+                  consecutive_failures = consecutive_failures + 1, updated_at = now()
+           WHERE id = $1
+           RETURNING consecutive_failures`,
+          [source.id, error ?? 'unknown error'],
+        ),
       );
 
       if (Number(row?.consecutive_failures ?? 0) >= 3) {
         this.logger.error(
-          `source "${source.name}" has failed ${row.consecutive_failures} times in a row: ${error ?? 'unknown error'}`,
+          `source "${source.name}" has failed ${row?.consecutive_failures} times in a row: ${error ?? 'unknown error'}`,
         );
       }
       return;
