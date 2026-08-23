@@ -40,6 +40,8 @@ export interface ReferenceResolver {
   /** Scans free text for any known venue alias. */
   findVenueInText(text: string): Promise<VenueRef | undefined>;
   resolveCategory(name: string | undefined): Promise<CategoryRef | undefined>;
+  /** Scans free text for any known category alias. */
+  findCategoryInText(text: string): Promise<CategoryRef | undefined>;
   /** Looks an organizer up by name, creating it when it is new. */
   resolveOrganizer(name: string | undefined): Promise<OrganizerRef | undefined>;
   defaultCity(): Promise<CityRef | undefined>;
@@ -116,6 +118,32 @@ export class DbReferenceResolver implements ReferenceResolver {
           OR a.normalized = persian_normalize_search($1)
        LIMIT 1`,
       [name.trim()],
+    );
+    return rows[0] ? { id: rows[0].id, slug: rows[0].slug, nameFa: rows[0].name_fa } : undefined;
+  }
+
+  /**
+   * Falls back to reading the category out of the title.
+   *
+   * eventro publishes no category field at all, so without this every ingested
+   * exhibition would be uncategorised and the category filter would return
+   * nothing. Aliases shorter than four characters are ignored because a short
+   * word appears inside unrelated titles too often to be evidence, and the
+   * longest match wins so a specific category beats a generic one.
+   */
+  async findCategoryInText(text: string): Promise<CategoryRef | undefined> {
+    if (!text?.trim()) return undefined;
+
+    const rows = await this.dataSource.query(
+      `SELECT c.id, c.slug, c.name_fa
+       FROM category_aliases a
+       JOIN categories c ON c.id = a.category_id
+       WHERE position(a.normalized IN persian_normalize_search($1)) > 0
+         AND length(a.normalized) >= 4
+         AND c.parent_id IS NOT NULL
+       ORDER BY length(a.normalized) DESC
+       LIMIT 1`,
+      [text],
     );
     return rows[0] ? { id: rows[0].id, slug: rows[0].slug, nameFa: rows[0].name_fa } : undefined;
   }

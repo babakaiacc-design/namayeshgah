@@ -86,9 +86,14 @@ export class Normalizer {
       return { warnings, rejectedReason: 'no city could be resolved and no default city exists' };
     }
 
-    const category = await this.resolver.resolveCategory(raw.category);
-    if (raw.category && !category) {
-      warnings.push(`unmapped category "${raw.category}" for "${displayTitle}"`);
+    // Some sources state a category; others, eventro included, state none at
+    // all, so the title is the only place left to look.
+    let category = await this.resolver.resolveCategory(raw.category);
+    if (!category) {
+      category = await this.resolver.findCategoryInText(displayTitle);
+      if (!category && raw.category) {
+        warnings.push(`unmapped category "${raw.category}" for "${displayTitle}"`);
+      }
     }
 
     const organizer = await this.resolver.resolveOrganizer(raw.organizer);

@@ -48,3 +48,9 @@ tmp/
 
 # embedded postgres data dir (test only)
 .pgdata/
+
+# local dev database (embedded postgres)
+.pgdev/
+
+# TypeScript incremental build cache
+*.tsbuildinfo

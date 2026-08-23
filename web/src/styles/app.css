@@ -1,0 +1,624 @@
+/*
+ * Design tokens and base layout.
+ *
+ * Written with CSS logical properties (inline-start, margin-inline) rather than
+ * left/right throughout. In an RTL-first app that is not a stylistic
+ * preference: physical properties would need mirroring by hand everywhere, and
+ * the one place someone forgets is the place the layout breaks.
+ */
+
+@font-face {
+  font-family: 'Vazirmatn';
+  src: url('/fonts/Vazirmatn-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Vazirmatn';
+  src: url('/fonts/Vazirmatn-Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Vazirmatn';
+  src: url('/fonts/Vazirmatn-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-display: swap;
+}
+
+:root {
+  --bg: #f6f7f9;
+  --surface: #ffffff;
+  --surface-2: #eef0f4;
+  --border: #dfe3ea;
+  --text: #14181f;
+  --text-muted: #5c6675;
+  --text-faint: #8a93a1;
+  --accent: #1f6feb;
+  --accent-soft: #e7f0ff;
+  --live: #d92d20;
+  --live-soft: #fef3f2;
+  --soon: #067647;
+  --soon-soft: #ecfdf3;
+  --warn: #b54708;
+  --warn-soft: #fffaeb;
+
+  --radius: 14px;
+  --radius-sm: 9px;
+  --shadow: 0 1px 2px rgb(16 24 40 / 6%), 0 1px 3px rgb(16 24 40 / 8%);
+
+  --nav-height: 62px;
+  --content-max: 640px;
+
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f1115;
+    --surface: #171a21;
+    --surface-2: #1f242d;
+    --border: #2a3039;
+    --text: #e8ebf0;
+    --text-muted: #9aa4b2;
+    --text-faint: #6b7480;
+    --accent: #6ea8fe;
+    --accent-soft: #182437;
+    --live: #f97066;
+    --live-soft: #2b1614;
+    --soon: #47cd89;
+    --soon-soft: #10261c;
+    --warn: #f7b27a;
+    --warn-soft: #2b1d10;
+    --shadow: none;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Vazirmatn', Tahoma, system-ui, sans-serif;
+  /* Persian text sits better with slightly looser lines than Latin defaults. */
+  line-height: 1.75;
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior-y: none;
+}
+
+button,
+input,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* Layout ------------------------------------------------------------------ */
+
+.app {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
+.app__main {
+  flex: 1;
+  width: 100%;
+  max-width: var(--content-max);
+  margin-inline: auto;
+  padding: 16px 16px calc(var(--nav-height) + 28px);
+}
+
+.page-title {
+  margin: 4px 0 18px;
+  font-size: 1.35rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.section {
+  margin-block-end: 26px;
+}
+
+.section__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-block-end: 10px;
+}
+
+.section__title {
+  margin: 0;
+  font-size: 1.02rem;
+  font-weight: 700;
+}
+
+.section__count {
+  font-size: 0.82rem;
+  color: var(--text-faint);
+}
+
+/* Bottom navigation ------------------------------------------------------- */
+
+.nav {
+  position: fixed;
+  inset-inline: 0;
+  bottom: 0;
+  z-index: 20;
+  display: flex;
+  height: var(--nav-height);
+  /* Keeps the bar clear of the iOS home indicator once installed. */
+  padding-bottom: env(safe-area-inset-bottom, 0);
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  backdrop-filter: blur(12px);
+  border-top: 1px solid var(--border);
+}
+
+.nav__item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  color: var(--text-faint);
+  font-size: 0.7rem;
+  transition: color 0.15s ease;
+}
+
+.nav__item[aria-current='page'] {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.nav__icon {
+  font-size: 1.15rem;
+  line-height: 1;
+}
+
+/* Exhibition card --------------------------------------------------------- */
+
+.card {
+  display: block;
+  padding: 14px;
+  margin-block-end: 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.card__title {
+  margin: 0 0 8px;
+  font-size: 0.98rem;
+  font-weight: 700;
+  line-height: 1.6;
+}
+
+.card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+.card__meta-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.card__badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-block-end: 8px;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 0.74rem;
+  font-weight: 500;
+  background: var(--surface-2);
+  color: var(--text-muted);
+}
+
+.badge--live {
+  background: var(--live-soft);
+  color: var(--live);
+  font-weight: 700;
+}
+
+.badge--soon {
+  background: var(--soon-soft);
+  color: var(--soon);
+}
+
+.badge--unknown {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+.badge--category {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+/* States ------------------------------------------------------------------ */
+
+.state {
+  padding: 32px 18px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.state__title {
+  margin: 0 0 6px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.state__hint {
+  margin: 0;
+  font-size: 0.86rem;
+}
+
+.skeleton {
+  height: 82px;
+  margin-block-end: 10px;
+  background: linear-gradient(
+    90deg,
+    var(--surface) 25%,
+    var(--surface-2) 37%,
+    var(--surface) 63%
+  );
+  background-size: 400% 100%;
+  border-radius: var(--radius);
+  animation: shimmer 1.3s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: 0 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: none;
+  }
+}
+
+/* Offline banner ---------------------------------------------------------- */
+
+.offline-banner {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  margin: -16px -16px 14px;
+  padding: 8px 16px;
+  background: var(--warn-soft);
+  color: var(--warn);
+  font-size: 0.82rem;
+  text-align: center;
+}
+
+/* Search ------------------------------------------------------------------ */
+
+.search-input {
+  width: 100%;
+  padding: 11px 14px;
+  margin-block-end: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  outline-offset: 2px;
+}
+
+.search-input:focus-visible {
+  outline: 2px solid var(--accent);
+}
+
+.chips {
+  display: flex;
+  gap: 7px;
+  margin-block-end: 16px;
+  padding-block-end: 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.chips::-webkit-scrollbar {
+  display: none;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: 0 0 auto;
+  padding: 6px 13px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
+.chip--active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  font-weight: 500;
+}
+
+.chip__count {
+  font-size: 0.72rem;
+  opacity: 0.7;
+}
+
+/* Calendar ---------------------------------------------------------------- */
+
+.calendar {
+  padding: 12px;
+  margin-block-end: 20px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.calendar__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-block-end: 10px;
+}
+
+.calendar__title {
+  font-weight: 700;
+}
+
+.calendar__nav {
+  width: 34px;
+  height: 34px;
+  background: var(--surface-2);
+  border: 0;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+.calendar__grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+
+.calendar__weekday {
+  padding-block-end: 4px;
+  text-align: center;
+  font-size: 0.72rem;
+  color: var(--text-faint);
+}
+
+.calendar__day {
+  position: relative;
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 0.86rem;
+}
+
+.calendar__day--today {
+  border-color: var(--accent);
+  font-weight: 700;
+}
+
+.calendar__day--selected {
+  background: var(--accent);
+  color: #fff;
+  font-weight: 700;
+}
+
+.calendar__dot {
+  position: absolute;
+  bottom: 5px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.calendar__day--selected .calendar__dot {
+  background: #fff;
+}
+
+/* Detail ------------------------------------------------------------------ */
+
+.back-link {
+  display: inline-block;
+  margin-block-end: 10px;
+  color: var(--accent);
+  font-size: 0.86rem;
+}
+
+.detail__title {
+  margin: 0 0 14px;
+  font-size: 1.22rem;
+  font-weight: 700;
+  line-height: 1.65;
+}
+
+.detail__dates {
+  padding: 13px;
+  margin-block-end: 16px;
+  background: var(--accent-soft);
+  border-radius: var(--radius);
+}
+
+.detail__dates--warn {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+.detail__dates strong {
+  display: block;
+  font-size: 1.02rem;
+}
+
+.detail__dates p {
+  margin: 6px 0 0;
+  font-size: 0.84rem;
+}
+
+.detail__freshness {
+  display: block;
+  margin-block-start: 6px;
+  font-size: 0.76rem;
+  opacity: 0.75;
+}
+
+.detail__facts {
+  margin: 0 0 16px;
+  padding: 0;
+}
+
+.detail__fact {
+  display: flex;
+  gap: 10px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.88rem;
+}
+
+.detail__fact dt {
+  flex: 0 0 96px;
+  color: var(--text-faint);
+}
+
+.detail__fact dd {
+  margin: 0;
+}
+
+.detail__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-block-end: 18px;
+}
+
+.action {
+  padding: 9px 15px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.action--active,
+.action--primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  font-weight: 500;
+}
+
+.detail__description {
+  margin-block-end: 20px;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  white-space: pre-line;
+}
+
+.sources {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sources__item {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.84rem;
+}
+
+.sources__item a {
+  color: var(--accent);
+}
+
+.sources__dates {
+  color: var(--text-muted);
+}
+
+/* Panels ------------------------------------------------------------------ */
+
+.panel {
+  padding: 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.panel__lead {
+  margin: 0 0 10px;
+  font-size: 0.89rem;
+}
+
+.panel__note {
+  margin: 8px 0 0;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+.panel__note--ok {
+  color: var(--soon);
+}
+
+/* Accessibility ----------------------------------------------------------- */
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

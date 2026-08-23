@@ -1,7 +1,7 @@
 {
   "name": "exhibition-reminder-backend",
   "version": "0.1.0",
-  "description": "Exhibition Reminder — API and data ingestion pipeline",
+  "description": "Exhibition Reminder \u2014 API and data ingestion pipeline",
   "license": "UNLICENSED",
   "private": true,
   "engines": {
@@ -24,7 +24,8 @@
     "migration:revert": "npm run typeorm -- migration:revert",
     "seed": "ts-node -r tsconfig-paths/register src/database/seeds/run-seed.ts",
     "sync": "ts-node -r tsconfig-paths/register src/ingestion/cli.ts",
-    "test:integration": "jest --config jest.integration.config.js"
+    "test:integration": "jest --config jest.integration.config.js",
+    "typecheck": "tsc --noEmit -p tsconfig.test.json"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.0",
