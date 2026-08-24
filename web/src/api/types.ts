@@ -122,7 +122,7 @@ export interface ExhibitionQuery {
   isInternational?: boolean;
   isSpecialized?: boolean;
   includeUndated?: boolean;
-  sort?: 'startDate' | '-startDate' | 'relevance';
+  sort?: 'startDate' | '-startDate' | 'relevance' | 'soonest';
   limit?: number;
   offset?: number;
 }

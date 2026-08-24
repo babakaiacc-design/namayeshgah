@@ -25,6 +25,13 @@ import {
  * The same adapter serves Tehran and any foreign location: eventro uses one
  * URL shape, /tc/fairs/{location}, for both.
  */
+/** The endpoint the listing page itself calls to page through results. */
+const FILTER_URL = 'https://eventro.ir/filter';
+const PAGE_SIZE = 30;
+
+/** Twelve pages reaches roughly a year back, which is the useful span. */
+const DEFAULT_PAGES = 12;
+
 export class EventroSource implements ExhibitionSource {
   readonly name = 'eventro';
   readonly displayName = 'Eventro';
@@ -34,54 +41,180 @@ export class EventroSource implements ExhibitionSource {
     const exhibitions: RawExhibition[] = [];
     const warnings: string[] = [];
     const seen = new Set<string>();
-    let detailBudget = context.maxDetailFetches ?? Number.POSITIVE_INFINITY;
 
     for (const location of context.locations) {
-      const listUrl = `${this.baseUrl}/tc/fairs/${location}`;
+      const api = await this.fetchPages(context, location, warnings);
 
-      let html: string;
-      try {
-        const response = await context.fetcher.get(listUrl);
-        if (response.notModified) {
-          context.logger?.debug(`eventro: ${location} unchanged`);
-          continue;
+      // "Nothing changed" is not the same as "nothing came back". Falling back
+      // to the HTML listing on a 304 would re-fetch a page we already know is
+      // unchanged, which is exactly what conditional requests exist to avoid.
+      if (api.unchanged) continue;
+
+      if (api.items.length > 0) {
+        for (const item of api.items) {
+          const key = item.sourceExternalId ?? item.sourceUrl;
+          if (!seen.has(key)) {
+            seen.add(key);
+            exhibitions.push(item);
+          }
         }
-        html = response.body;
-      } catch (error) {
-        warnings.push(`eventro: failed to fetch ${listUrl}: ${(error as Error).message}`);
         continue;
       }
 
-      const items = this.parseListing(html, location, warnings);
+      // The JSON endpoint gave nothing, so fall back to scraping the rendered
+      // listing. That only ever covers the first page, but a reduced result is
+      // better than an empty sync if the endpoint changes shape.
+      warnings.push(`eventro: listing api returned nothing for ${location}, falling back to html`);
 
-      for (const item of items) {
-        const key = item.sourceExternalId ?? item.sourceUrl;
-        if (seen.has(key)) continue;
-        seen.add(key);
+      try {
+        const response = await context.fetcher.get(`${this.baseUrl}/tc/fairs/${location}`);
+        if (response.notModified) continue;
 
-        // The listing carries a single date; only the detail page states an end
-        // date, a venue and an organizer. Without it the record would be
-        // permanently missing its end date, so the detail fetch is worth the
-        // extra request.
-        if (detailBudget > 0) {
-          detailBudget -= 1;
-          try {
-            const detail = await context.fetcher.get(item.sourceUrl);
-            if (!detail.notModified) {
-              this.applyDetail(item, detail.body, warnings);
-            }
-          } catch (error) {
-            warnings.push(
-              `eventro: detail fetch failed for ${item.sourceUrl}: ${(error as Error).message}`,
-            );
+        for (const item of this.parseListing(response.body, location, warnings)) {
+          const key = item.sourceExternalId ?? item.sourceUrl;
+          if (!seen.has(key)) {
+            seen.add(key);
+            exhibitions.push(item);
           }
         }
-
-        exhibitions.push(item);
+      } catch (error) {
+        warnings.push(`eventro: failed to fetch ${location}: ${(error as Error).message}`);
       }
     }
 
+    await this.enrichFromDetailPages(context, exhibitions, warnings);
+
     return { exhibitions, warnings };
+  }
+
+  /**
+   * Walks the listing endpoint page by page.
+   *
+   * Pages run backwards in time, so a larger page count buys history rather
+   * than more of the future. Fetching stops early on an empty page so a short
+   * location does not spend the whole budget on nothing.
+   */
+  private async fetchPages(
+    context: SourceContext,
+    location: string,
+    warnings: string[],
+  ): Promise<{ items: RawExhibition[]; unchanged: boolean }> {
+    const pages = context.maxListPages ?? DEFAULT_PAGES;
+    const collected: RawExhibition[] = [];
+
+    for (let page = 0; page < pages; page += 1) {
+      const limitstart = String(page * PAGE_SIZE);
+
+      let body: string;
+      try {
+        const response = await context.fetcher.post(FILTER_URL, {
+          type: '1',
+          limitstart,
+          place_alias: location,
+        });
+        if (response.notModified) {
+          return { items: collected, unchanged: page === 0 };
+        }
+        body = response.body;
+      } catch (error) {
+        warnings.push(
+          `eventro: listing page ${page} for ${location} failed: ${(error as Error).message}`,
+        );
+        break;
+      }
+
+      const items = this.parseFilterPage(body, location, warnings);
+      if (items.length === 0) break;
+
+      collected.push(...items);
+      if (items.length < PAGE_SIZE) break;
+    }
+
+    return { items: collected, unchanged: false };
+  }
+
+  /**
+   * Fills in what the listing cannot say: the end date, the venue and the
+   * organizer, all of which live only on the detail page.
+   *
+   * Upcoming exhibitions are enriched first. With a bounded budget and a year
+   * of history in the list, spending it on events that already happened would
+   * leave the ones a user can still attend without a venue.
+   */
+  private async enrichFromDetailPages(
+    context: SourceContext,
+    exhibitions: RawExhibition[],
+    warnings: string[],
+  ): Promise<void> {
+    let budget = context.maxDetailFetches ?? Number.POSITIVE_INFINITY;
+    if (budget <= 0) return;
+
+    const today = new Date().toISOString().slice(0, 10);
+    const byPriority = [...exhibitions].sort((a, b) => {
+      const aUpcoming = (a.startDate ?? '') >= today;
+      const bUpcoming = (b.startDate ?? '') >= today;
+      if (aUpcoming !== bUpcoming) return aUpcoming ? -1 : 1;
+      // Within each group, nearest to today first.
+      return aUpcoming
+        ? (a.startDate ?? '').localeCompare(b.startDate ?? '')
+        : (b.startDate ?? '').localeCompare(a.startDate ?? '');
+    });
+
+    for (const item of byPriority) {
+      if (budget <= 0) break;
+      budget -= 1;
+
+      try {
+        const detail = await context.fetcher.get(item.sourceUrl);
+        if (!detail.notModified) this.applyDetail(item, detail.body, warnings);
+      } catch (error) {
+        warnings.push(
+          `eventro: detail fetch failed for ${item.sourceUrl}: ${(error as Error).message}`,
+        );
+      }
+    }
+  }
+
+  /** Exposed for tests. Maps one page of the listing endpoint. */
+  parseFilterPage(body: string, location: string, warnings: string[] = []): RawExhibition[] {
+    let payload: { items?: unknown };
+    try {
+      payload = JSON.parse(body);
+    } catch {
+      warnings.push('eventro: listing api returned a body that is not json');
+      return [];
+    }
+
+    const items = Array.isArray(payload.items) ? payload.items : [];
+    const results: RawExhibition[] = [];
+
+    for (const raw of items as Array<Record<string, unknown>>) {
+      const id = raw.id === undefined ? undefined : String(raw.id);
+      const title = collapse(typeof raw.title === 'string' ? raw.title : '');
+      if (!id || !title) continue;
+
+      // The endpoint gives the Gregorian date with a full year, so there is no
+      // century to guess and no Persian month name to interpret.
+      const gregorian = typeof raw.mstart_date === 'string' ? raw.mstart_date : '';
+      const startDate = parseEnglishDate(gregorian);
+      if (gregorian && !startDate) {
+        warnings.push(`eventro: unrecognized api date "${gregorian}" for ${title}`);
+      }
+
+      results.push({
+        sourceExternalId: id,
+        sourceUrl: `${this.baseUrl}/events/${id}`,
+        title,
+        startDate,
+        rawStartDate: typeof raw.jstart_date === 'string' ? raw.jstart_date : undefined,
+        city: collapse(typeof raw.catname === 'string' ? raw.catname : '') || location,
+        status: collapse(typeof raw.status === 'string' ? raw.status : '') || undefined,
+        imageUrl: typeof raw.image === 'string' ? raw.image : undefined,
+        extra: { listingLocation: location, via: 'filter-api' },
+      });
+    }
+
+    return results;
   }
 
   /** Exposed for tests so a saved fixture can be parsed without a network. */

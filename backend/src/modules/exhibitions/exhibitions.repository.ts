@@ -213,15 +213,33 @@ export class ExhibitionsRepository {
     return { items, total: countRow?.total ?? 0 };
   }
 
+  /**
+   * Upcoming ascending, then past descending.
+   *
+   * Expressed as three keys rather than one so each group keeps its own
+   * direction: the next exhibition should be first, and among ones that have
+   * already happened the most recent is the one somebody is asking about.
+   */
+  private readonly soonestFirst = [
+    `(e.start_date >= ${this.localToday}) DESC`,
+    `CASE WHEN e.start_date >= ${this.localToday} THEN e.start_date END ASC`,
+    `CASE WHEN e.start_date < ${this.localToday} THEN e.start_date END DESC`,
+  ].join(', ');
+
   private buildOrderBy(sort: ExhibitionSort | undefined, rankExpression: string): string {
     switch (sort) {
       case ExhibitionSort.StartDateDesc:
         return 'e.start_date DESC NULLS LAST, e.id';
+      case ExhibitionSort.Soonest:
+        return `${this.soonestFirst}, e.id`;
       case ExhibitionSort.Relevance:
+        // Many rows share a rank when they share the matched words, so the
+        // tiebreaker decides most of the ordering in practice.
         return rankExpression === 'NULL'
-          ? 'e.start_date ASC NULLS LAST, e.id'
-          : `${rankExpression} DESC, e.start_date ASC NULLS LAST, e.id`;
+          ? `${this.soonestFirst}, e.id`
+          : `${rankExpression} DESC, ${this.soonestFirst}, e.id`;
       default:
+        // Plain ascending, which is what a calendar month wants.
         return 'e.start_date ASC NULLS LAST, e.id';
     }
   }

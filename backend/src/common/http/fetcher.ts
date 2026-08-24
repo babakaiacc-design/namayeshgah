@@ -28,6 +28,15 @@ export interface RawResponse {
 
 export interface Fetcher {
   get(url: string, options?: FetchOptions): Promise<RawResponse>;
+
+  /**
+   * Form-encoded POST.
+   *
+   * Some sources expose their listing as a small JSON endpoint that the page
+   * itself calls, which is both kinder to the server and far less fragile than
+   * parsing rendered HTML. Reaching it needs a POST, so the seam carries one.
+   */
+  post(url: string, form: Record<string, string>, options?: FetchOptions): Promise<RawResponse>;
 }
 
 export class FetchError extends Error {

@@ -24,6 +24,7 @@ interface Args {
   locations?: string[];
   dryRun: boolean;
   maxDetails?: number;
+  pages?: number;
 }
 
 function parseArgs(argv: string[]): Args {
@@ -40,6 +41,8 @@ function parseArgs(argv: string[]): Args {
         .filter(Boolean);
     } else if (arg.startsWith('--max-details=')) {
       args.maxDetails = Number.parseInt(arg.slice('--max-details='.length), 10);
+    } else if (arg.startsWith('--pages=')) {
+      args.pages = Number.parseInt(arg.slice('--pages='.length), 10);
     }
   }
 
@@ -50,7 +53,9 @@ async function main(): Promise<number> {
   const args = parseArgs(process.argv.slice(2));
 
   if (!args.source) {
-    console.error('usage: npm run sync -- --source=<name> [--dry-run] [--locations=a,b]');
+    console.error(
+      'usage: npm run sync -- --source=<name> [--dry-run] [--locations=a,b] [--pages=N]',
+    );
     console.error(`known sources: ${knownSources().join(', ')}`);
     return 2;
   }
@@ -101,6 +106,7 @@ async function main(): Promise<number> {
       fetcher,
       locations,
       maxDetailFetches: args.maxDetails,
+      maxListPages: args.pages,
       logger: {
         debug: (message) => console.log(`[fetch] ${message}`),
         warn: (message) => console.warn(`[fetch] ${message}`),

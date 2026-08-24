@@ -6,6 +6,7 @@ import request from 'supertest';
 import { DataSource } from 'typeorm';
 
 import { createTestDatabase, migratedDataSource } from '../../test/test-db';
+import { fakeFetcher, okResponse } from '../../test/fake-fetcher';
 
 const fixture = (name: string): string =>
   readFileSync(join(__dirname, '../../test/fixtures', name), 'utf8');
@@ -52,16 +53,14 @@ describe('public API', () => {
     const detail = fixture('eventro-event-53066.html');
 
     const fetched = await new EventroSource().fetchExhibitions({
-      fetcher: {
-        async get(target: string) {
-          const body = target.includes('/tc/fairs/tehran')
-            ? listing
-            : target.includes('/events/53066')
-              ? detail
-              : '<html></html>';
-          return { url: target, status: 200, body, headers: {}, notModified: false };
-        },
-      },
+      fetcher: fakeFetcher(({ url: target }) => {
+        const body = target.includes('/tc/fairs/tehran')
+          ? listing
+          : target.includes('/events/53066')
+            ? detail
+            : '<html></html>';
+        return okResponse(target, body);
+      }),
       locations: ['tehran'],
     });
 
@@ -200,6 +199,96 @@ describe('public API', () => {
       expect(response.body.items).toEqual([]);
       expect(response.body.total).toBe(0);
     });
+
+    /**
+     * Somebody searching for a furniture fair wants to know when it was held and
+     * where, so an exhibition that has already finished must still be findable.
+     * These run against dates written for this block, because what the fixture
+     * happens to contain today would otherwise decide whether the test means
+     * anything.
+     */
+    describe('exhibitions that have already happened', () => {
+      const marker = 'سرندیپیتی';
+      let past: string;
+      let older: string;
+      let upcoming: string;
+
+      beforeAll(async () => {
+        const [row] = await dataSource.query(
+          `SELECT city_id FROM exhibitions WHERE city_id IS NOT NULL LIMIT 1`,
+        );
+
+        const add = async (title: string, start: string): Promise<string> => {
+          const [created] = await dataSource.query(
+            `INSERT INTO exhibitions (slug, canonical_title, city_id, start_date, end_date,
+                                      date_status, confidence)
+             VALUES ($1, $2, $3, $4::date, $4::date, 'CONFIRMED', 1)
+             RETURNING id`,
+            [`serendipity-${start}`, `${marker} ${title}`, row.city_id, start],
+          );
+          await dataSource.query(
+            `INSERT INTO exhibition_translations (exhibition_id, locale, title)
+             VALUES ($1, 'fa', $2)`,
+            [created.id, `${marker} ${title}`],
+          );
+          return created.id;
+        };
+
+        // Relative to today so the test keeps its meaning as the clock moves.
+        const day = (offset: number): string =>
+          new Date(Date.now() + offset * 86_400_000).toISOString().slice(0, 10);
+
+        older = await add('قدیمی', day(-800));
+        past = await add('گذشته', day(-40));
+        upcoming = await add('پیش‌رو', day(30));
+      });
+
+      it('finds one whose date has passed', async () => {
+        const response = await api()
+          .get(`/exhibitions?search=${encodeURIComponent(marker)}`)
+          .expect(200);
+
+        const ids = response.body.items.map((item: any) => item.id);
+        expect(ids).toContain(past);
+        expect(ids).toContain(older);
+      });
+
+      it('reports its date and its city, which is the point of finding it', async () => {
+        const response = await api()
+          .get(`/exhibitions?search=${encodeURIComponent(marker)}`)
+          .expect(200);
+        const found = response.body.items.find((item: any) => item.id === past);
+
+        expect(found.dates.start).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+        expect(found.city.name).toBeTruthy();
+      });
+
+      it('leads with what is still to come, then the most recent past', async () => {
+        const response = await api()
+          .get(`/exhibitions?search=${encodeURIComponent(marker)}&sort=soonest`)
+          .expect(200);
+
+        const ids = response.body.items.map((item: any) => item.id);
+        expect(ids.indexOf(upcoming)).toBeLessThan(ids.indexOf(past));
+        expect(ids.indexOf(past)).toBeLessThan(ids.indexOf(older));
+      });
+
+      it('orders a ranked search the same way once rank ties', async () => {
+        const response = await api()
+          .get(`/exhibitions?search=${encodeURIComponent(marker)}&sort=relevance`)
+          .expect(200);
+
+        const ids = response.body.items.map((item: any) => item.id);
+        expect(ids.indexOf(upcoming)).toBeLessThan(ids.indexOf(older));
+      });
+
+      it('still lists a calendar month oldest first', async () => {
+        // The grouped ordering is for search; a month view wants plain ascending.
+        const response = await api().get('/exhibitions?sort=startDate&limit=50').expect(200);
+        const dates = response.body.items.map((item: any) => item.dates.start);
+        expect([...dates].sort()).toEqual(dates);
+      });
+    });
   });
 
   describe('home screen endpoints', () => {
@@ -239,7 +328,9 @@ describe('public API', () => {
 
   describe('GET /exhibitions/:idOrSlug', () => {
     it('returns one exhibition with its provenance', async () => {
-      const list = await api().get('/exhibitions').expect(200);
+      // Named rather than "whichever sorts first": the database also holds rows
+      // written directly by other tests, and those have no source behind them.
+      const list = await api().get('/exhibitions?search=الکامپ').expect(200);
       const { id } = list.body.items[0];
 
       const response = await api().get(`/exhibitions/${id}`).expect(200);

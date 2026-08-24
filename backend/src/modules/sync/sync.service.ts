@@ -16,6 +16,8 @@ export interface SyncOptions {
   dryRun?: boolean;
   locations?: string[];
   maxDetailFetches?: number;
+  /** How many listing pages to walk, which is how much history to carry. */
+  maxListPages?: number;
 }
 
 export interface SourceSyncResult {
@@ -226,6 +228,7 @@ export class SyncService {
         fetcher,
         locations,
         maxDetailFetches: options.maxDetailFetches,
+        maxListPages: options.maxListPages,
         logger: {
           debug: (message) => this.logger.debug(message),
           warn: (message) => this.logger.warn(message),

@@ -8,6 +8,14 @@ export enum ExhibitionSort {
   StartDateAsc = 'startDate',
   StartDateDesc = '-startDate',
   Relevance = 'relevance',
+  /**
+   * Upcoming first and soonest, then the past with the most recent first.
+   *
+   * Plain ascending order was fine while the calendar only held the current
+   * window, but now that a year of history is ingested it buries what is coming
+   * under exhibitions from three years ago.
+   */
+  Soonest = 'soonest',
 }
 
 export enum ExhibitionTimeframe {

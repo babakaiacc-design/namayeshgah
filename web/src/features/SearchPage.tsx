@@ -37,7 +37,7 @@ export function SearchPage() {
         search: debounced || undefined,
         category,
         city: CITY,
-        sort: debounced ? 'relevance' : 'startDate',
+        sort: debounced ? 'relevance' : 'soonest',
         limit: 50,
       }),
     enabled: hasQuery,

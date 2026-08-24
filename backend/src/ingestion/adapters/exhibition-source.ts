@@ -51,6 +51,15 @@ export interface SourceContext {
   };
   /** Caps detail-page requests per run so one sync cannot run away. */
   maxDetailFetches?: number;
+
+  /**
+   * How many pages of the listing to walk.
+   *
+   * eventro pages backwards through time, so this is really "how much history
+   * to carry". Past exhibitions matter: somebody searching for a furniture fair
+   * wants to know when it was held and where, not only whether one is coming.
+   */
+  maxListPages?: number;
 }
 
 export interface SourceResult {

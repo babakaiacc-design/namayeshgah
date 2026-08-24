@@ -10,6 +10,7 @@ import { Fetcher, RawResponse } from '../common/http/fetcher';
 import { IngestionService } from './ingestion.service';
 import { Normalizer } from './normalizer/normalizer';
 import { DbReferenceResolver } from './normalizer/reference-resolver';
+import { fakeFetcher, okResponse } from '../../test/fake-fetcher';
 
 const fixture = (name: string): string =>
   readFileSync(join(__dirname, '../../test/fixtures', name), 'utf8');
@@ -17,16 +18,14 @@ const fixture = (name: string): string =>
 const TEHRAN_LISTING = fixture('eventro-tehran.html');
 const EVENT_DETAIL = fixture('eventro-event-53066.html');
 
-const fixtureFetcher: Fetcher = {
-  async get(url: string): Promise<RawResponse> {
-    const body = url.includes('/tc/fairs/tehran')
-      ? TEHRAN_LISTING
-      : url.includes('/events/53066')
-        ? EVENT_DETAIL
-        : '<html></html>';
-    return { url, status: 200, body, headers: {}, notModified: false };
-  },
-};
+const fixtureFetcher: Fetcher = fakeFetcher(({ url }) => {
+  const body = url.includes('/tc/fairs/tehran')
+    ? TEHRAN_LISTING
+    : url.includes('/events/53066')
+      ? EVENT_DETAIL
+      : '<html></html>';
+  return okResponse(url, body);
+});
 
 describe('ingestion pipeline', () => {
   let dataSource: DataSource;

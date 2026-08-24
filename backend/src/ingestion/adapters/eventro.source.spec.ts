@@ -3,6 +3,7 @@ import { join } from 'path';
 
 import { Fetcher, RawResponse } from '../../common/http/fetcher';
 import { EventroSource, isoDate, parseEnglishDate } from './eventro.source';
+import { fakeFetcher, okResponse } from '../../../test/fake-fetcher';
 
 const fixture = (name: string): string =>
   readFileSync(join(__dirname, '../../../test/fixtures', name), 'utf8');
@@ -11,6 +12,7 @@ const TEHRAN_LISTING = fixture('eventro-tehran.html');
 const GERMANY_LISTING = fixture('eventro-germany.html');
 const EVENT_DETAIL = fixture('eventro-event-53066.html');
 const MONTH_ONLY = fixture('eventro-month-only-date.html');
+const FILTER_PAGE = fixture('eventro-filter-page.json');
 
 describe('parseEnglishDate', () => {
   it('parses the listing date format', () => {
@@ -187,17 +189,16 @@ describe('EventroSource end to end against fixtures', () => {
   const source = new EventroSource();
 
   /** Serves saved pages so the test never touches the network. */
-  const fixtureFetcher = (calls: string[] = []): Fetcher => ({
-    async get(url: string): Promise<RawResponse> {
+  const fixtureFetcher = (calls: string[] = []): Fetcher =>
+    fakeFetcher(({ url }) => {
       calls.push(url);
       const body = url.includes('/tc/fairs/tehran')
         ? TEHRAN_LISTING
         : url.includes('/events/53066')
           ? EVENT_DETAIL
           : '<html></html>';
-      return { url, status: 200, body, headers: {}, notModified: false };
-    },
-  });
+      return okResponse(url, body);
+    });
 
   it('returns fully populated records', async () => {
     const result = await source.fetchExhibitions({
@@ -226,26 +227,26 @@ describe('EventroSource end to end against fixtures', () => {
   it('skips work entirely when the listing is unchanged', async () => {
     const calls: string[] = [];
     const result = await source.fetchExhibitions({
-      fetcher: {
-        async get(url) {
-          calls.push(url);
-          return { url, status: 304, body: '', headers: {}, notModified: true };
-        },
-      },
+      fetcher: fakeFetcher(({ url }) => {
+        calls.push(url);
+        return { url, status: 304, body: '', headers: {}, notModified: true };
+      }),
       locations: ['tehran'],
     });
 
     expect(result.exhibitions).toEqual([]);
+    // One conditional request, and no fallback: "unchanged" already answers the
+    // question, so re-fetching the rendered listing would waste the round trip
+    // the conditional request just saved.
     expect(calls).toHaveLength(1);
+    expect(calls[0]).toContain('/filter');
   });
 
   it('records a warning instead of failing the run when a fetch breaks', async () => {
     const result = await source.fetchExhibitions({
-      fetcher: {
-        async get() {
-          throw new Error('connection reset');
-        },
-      },
+      fetcher: fakeFetcher(() => {
+        throw new Error('connection reset');
+      }),
       locations: ['tehran'],
     });
 
@@ -254,18 +255,13 @@ describe('EventroSource end to end against fixtures', () => {
   });
 
   it('still yields listing data when detail pages fail', async () => {
-    let first = true;
     const result = await source.fetchExhibitions({
-      fetcher: {
-        async get(url) {
-          if (first) {
-            first = false;
-            return { url, status: 200, body: TEHRAN_LISTING, headers: {}, notModified: false };
-          }
-          throw new Error('detail timeout');
-        },
-      },
+      fetcher: fakeFetcher(({ url, method }) => {
+        if (method === 'POST') return okResponse(url, FILTER_PAGE);
+        throw new Error('detail timeout');
+      }),
       locations: ['tehran'],
+      maxListPages: 1,
     });
 
     expect(result.exhibitions.length).toBeGreaterThan(0);
@@ -273,3 +269,128 @@ describe('EventroSource end to end against fixtures', () => {
     expect(result.warnings.some((w) => w.includes('detail timeout'))).toBe(true);
   });
 });
+
+describe('EventroSource listing endpoint', () => {
+  const source = new EventroSource();
+
+  it('maps a page of the real json response', () => {
+    const items = source.parseFilterPage(FILTER_PAGE, 'tehran');
+
+    expect(items).toHaveLength(30);
+    expect(items[0].sourceExternalId).toBe('50848');
+    expect(items[0].sourceUrl).toBe('https://eventro.ir/events/50848');
+    expect(items[0].title.length).toBeGreaterThan(0);
+  });
+
+  it('takes the full-year Gregorian date the endpoint supplies', () => {
+    // Detail pages print a two-digit year; this endpoint gives four, so there
+    // is no century to guess.
+    const items = source.parseFilterPage(FILTER_PAGE, 'tehran');
+    const held = items.find((item) => item.sourceExternalId === '50848')!;
+
+    expect(held.startDate).toBe('2025-10-03');
+  });
+
+  it('carries past exhibitions rather than dropping them', () => {
+    // The whole reason for paging: a search for a fair that already happened
+    // must still answer when it was and where.
+    const items = source.parseFilterPage(FILTER_PAGE, 'tehran');
+    const held = items.filter((item) => item.status && item.status.includes('برگزار شده'));
+
+    expect(held.length).toBeGreaterThan(0);
+    expect(held.every((item) => item.startDate)).toBe(true);
+  });
+
+  it('survives a body that is not json', () => {
+    const warnings: string[] = [];
+    expect(source.parseFilterPage('<html>nope</html>', 'tehran', warnings)).toEqual([]);
+    expect(warnings.some((w) => w.includes('not json'))).toBe(true);
+  });
+
+  it('walks pages until one comes back short', async () => {
+    const requested: string[] = [];
+    const result = await source.fetchExhibitions({
+      fetcher: fakeFetcher(({ url, method, form }) => {
+        if (method !== 'POST') return okResponse(url, '<html></html>');
+        requested.push(form!.limitstart);
+        const body =
+          form!.limitstart === '0' ? FILTER_PAGE : JSON.stringify({ cnt: 0, items: [] });
+        return okResponse(url, body);
+      }),
+      locations: ['tehran'],
+      maxListPages: 10,
+      maxDetailFetches: 0,
+    });
+
+    expect(requested).toEqual(['0', '30']);
+    expect(result.exhibitions).toHaveLength(30);
+  });
+
+  it('respects the page cap', async () => {
+    const requested: string[] = [];
+    await source.fetchExhibitions({
+      fetcher: fakeFetcher(({ url, method, form }) => {
+        if (method !== 'POST') return okResponse(url, '<html></html>');
+        requested.push(form!.limitstart);
+        return okResponse(url, FILTER_PAGE);
+      }),
+      locations: ['tehran'],
+      maxListPages: 3,
+      maxDetailFetches: 0,
+    });
+
+    expect(requested).toEqual(['0', '30', '60']);
+  });
+
+  it('falls back to the rendered listing when the endpoint breaks', async () => {
+    const result = await source.fetchExhibitions({
+      fetcher: fakeFetcher(({ url, method }) =>
+        method === 'POST' ? okResponse(url, 'not json at all') : okResponse(url, TEHRAN_LISTING),
+      ),
+      locations: ['tehran'],
+      maxDetailFetches: 0,
+    });
+
+    // A reduced result beats an empty sync when the endpoint changes shape.
+    expect(result.exhibitions.length).toBeGreaterThan(0);
+    expect(result.warnings.some((w) => w.includes('falling back to html'))).toBe(true);
+  });
+
+  it('spends the detail budget on upcoming exhibitions first', async () => {
+    // With a year of history in the list, enriching the oldest first would
+    // leave the events a user can still attend without a venue.
+    const detailIds: string[] = [];
+    const future = new Date(Date.now() + 60 * 86400000).toISOString().slice(0, 10);
+
+    const page = JSON.stringify({
+      cnt: 2,
+      items: [
+        { id: '1', title: 'گذشته', mstart_date: '01 January 2024', catname: 'تهران' },
+        { id: '2', title: 'آینده', mstart_date: asEndpointDate(future), catname: 'تهران' },
+      ],
+    });
+
+    await source.fetchExhibitions({
+      fetcher: fakeFetcher(({ url, method }) => {
+        if (method === 'POST') return okResponse(url, page);
+        detailIds.push(url.split('/').pop()!);
+        return okResponse(url, '<html></html>');
+      }),
+      locations: ['tehran'],
+      maxListPages: 1,
+      maxDetailFetches: 1,
+    });
+
+    expect(detailIds).toEqual(['2']);
+  });
+});
+
+/** Renders an ISO date the way the endpoint prints it. */
+function asEndpointDate(iso: string): string {
+  return new Intl.DateTimeFormat('en-GB', {
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'UTC',
+  }).format(new Date(iso + 'T12:00:00Z'));
+}

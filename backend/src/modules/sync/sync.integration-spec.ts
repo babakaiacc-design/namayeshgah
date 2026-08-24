@@ -6,6 +6,7 @@ import { DataSource } from 'typeorm';
 import { Fetcher, RawResponse } from '../../common/http/fetcher';
 import { FETCHER_FACTORY, FetcherFactory } from '../../common/http/fetcher.factory';
 import { createTestDatabase, migratedDataSource } from '../../../test/test-db';
+import { fakeFetcher, okResponse } from '../../../test/fake-fetcher';
 
 const SYNC_SECRET = 'sync-secret-for-integration-tests-long-enough';
 
@@ -46,6 +47,25 @@ function listingHtml(events: Array<{ id: string; title: string; jalali: string; 
   return `<html><body><div id="eventslistarea">${items}</div></body></html>`;
 }
 
+/**
+ * One page of the JSON listing endpoint, which is what the adapter asks for
+ * first. The HTML above is the fallback; both are modelled so a test can choose
+ * which path it is exercising, and so a broken endpoint shows up as a warning
+ * here exactly as it would in production.
+ */
+function listingJson(events: Array<{ id: string; title: string; jalali: string; gregorian: string }>) {
+  return JSON.stringify({
+    items: events.map((event) => ({
+      id: event.id,
+      title: event.title,
+      jstart_date: event.jalali,
+      mstart_date: event.gregorian,
+      catname: 'تهران',
+      status: 'در حال برگزاری',
+    })),
+  });
+}
+
 /** Detail page carrying the schema.org microdata the adapter prefers. */
 function detailHtml(event: { start: string; end: string; venue: string }) {
   return `<html><body>
@@ -69,14 +89,15 @@ describe('sync engine', () => {
   let pages: Record<string, string> = {};
   let failNext = false;
 
-  const fixtureFetcher: Fetcher = {
-    async get(url: string): Promise<RawResponse> {
-      if (failNext) throw new Error('simulated network failure');
-      const key = Object.keys(pages).find((candidate) => url.includes(candidate));
-      const body = key ? pages[key] : '<html></html>';
-      return { url, status: 200, body, headers: {}, notModified: false };
-    },
-  };
+  const fixtureFetcher: Fetcher = fakeFetcher(({ url }) => {
+    if (failNext) throw new Error('simulated network failure');
+    const key = Object.keys(pages).find((candidate) => url.includes(candidate));
+    if (key) return okResponse(url, pages[key]);
+    // An unregistered listing endpoint answers with a well-formed empty page
+    // rather than html, so a test that only registers the html listing takes
+    // the documented fallback instead of looking like a broken endpoint.
+    return okResponse(url, url.includes('/filter') ? '{"items":[]}' : '<html></html>');
+  });
 
   const fixtureFactory: FetcherFactory = { forSource: () => fixtureFetcher };
 
@@ -149,15 +170,20 @@ describe('sync engine', () => {
 
   describe('a successful run', () => {
     beforeEach(() => {
+      const listed = [
+        {
+          id: '70001',
+          title: 'نمایشگاه بین المللی صنعت مبلمان تهران',
+          jalali: '20 شهریور 1405',
+          gregorian: '11 September 2026',
+        },
+      ];
+
       pages = {
-        '/tc/fairs/tehran': listingHtml([
-          {
-            id: '70001',
-            title: 'نمایشگاه بین المللی صنعت مبلمان تهران',
-            jalali: '20 شهریور 1405',
-            gregorian: '11 September 2026',
-          },
-        ]),
+        // Both forms, because this block asserts a clean SUCCESS: the adapter
+        // reads the endpoint first and only warns when it has to fall back.
+        '/filter': listingJson(listed),
+        '/tc/fairs/tehran': listingHtml(listed),
         '/events/70001': detailHtml({
           start: '2026-09-11',
           end: '2026-09-14',

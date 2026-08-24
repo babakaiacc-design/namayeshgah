@@ -36,6 +36,23 @@ export class DirectFetcher implements Fetcher {
   }
 
   async get(url: string, options: FetchOptions = {}): Promise<RawResponse> {
+    return this.send('GET', url, undefined, options);
+  }
+
+  async post(
+    url: string,
+    form: Record<string, string>,
+    options: FetchOptions = {},
+  ): Promise<RawResponse> {
+    return this.send('POST', url, new URLSearchParams(form).toString(), options);
+  }
+
+  private async send(
+    method: 'GET' | 'POST',
+    url: string,
+    body: string | undefined,
+    options: FetchOptions = {},
+  ): Promise<RawResponse> {
     const host = new URL(url).host;
     const timeoutMs = options.timeoutMs ?? this.config.timeoutMs;
 
@@ -46,6 +63,9 @@ export class DirectFetcher implements Fetcher {
     };
     if (options.etag) headers['If-None-Match'] = options.etag;
     if (options.lastModified) headers['If-Modified-Since'] = options.lastModified;
+    if (body !== undefined) {
+      headers['Content-Type'] = 'application/x-www-form-urlencoded; charset=UTF-8';
+    }
 
     let lastError: Error | undefined;
 
@@ -53,7 +73,7 @@ export class DirectFetcher implements Fetcher {
       await this.limiter.acquire(host);
 
       try {
-        const response = await this.withTimeout(url, headers, timeoutMs);
+        const response = await this.withTimeout(method, url, headers, body, timeoutMs);
 
         // 304 means our cached copy is still good — the cheapest possible sync.
         if (response.status === 304) {
@@ -113,14 +133,18 @@ export class DirectFetcher implements Fetcher {
   }
 
   private async withTimeout(
+    method: 'GET' | 'POST',
     url: string,
     headers: Record<string, string>,
+    body: string | undefined,
     timeoutMs: number,
   ): Promise<Response> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
       return await this.fetchImpl(url, {
+        method,
+        body,
         headers,
         signal: controller.signal,
         redirect: 'follow',

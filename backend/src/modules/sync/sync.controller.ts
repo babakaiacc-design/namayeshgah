@@ -27,6 +27,13 @@ export class TriggerSyncDto {
   @Min(1)
   @Max(500)
   maxDetailFetches?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(60)
+  maxListPages?: number;
 }
 
 /**
@@ -52,6 +59,7 @@ export class SyncController {
       dryRun: body.dryRun,
       locations: body.locations,
       maxDetailFetches: body.maxDetailFetches,
+      maxListPages: body.maxListPages,
     });
   }
 
