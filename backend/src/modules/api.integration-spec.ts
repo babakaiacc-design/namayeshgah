@@ -165,6 +165,34 @@ describe('public API', () => {
       }
     });
 
+    it('includes a month-range result whose end date is not known yet', async () => {
+      // The end date only exists once a detail page has been fetched, which is
+      // budgeted per sync run, so it is routinely still unknown for exhibitions
+      // further out. This is exactly the calendar's own query shape: a month
+      // opened by the user must show every exhibition starting in it, not only
+      // the ones a detail fetch has already reached.
+      const [city] = await dataSource.query(
+        `SELECT city_id FROM exhibitions WHERE city_id IS NOT NULL LIMIT 1`,
+      );
+      // date_status is UNKNOWN, not CONFIRMED: a CONFIRMED row is required by a
+      // database check constraint to have both dates, and a real row in this
+      // state (start known, end not yet fetched) is UNKNOWN too.
+      const [created] = await dataSource.query(
+        `INSERT INTO exhibitions (slug, canonical_title, city_id, start_date, end_date,
+                                  date_status, confidence)
+         VALUES ($1, $2, $3, '2026-08-20'::date, NULL, 'UNKNOWN', 0.6)
+         RETURNING id`,
+        ['no-end-date-2026-08-20', 'رویداد بدون تاریخ پایان آزمایشی', city.city_id],
+      );
+
+      const response = await api()
+        .get('/exhibitions?dateFrom=2026-08-01&dateTo=2026-08-31')
+        .expect(200);
+
+      const ids = response.body.items.map((item: any) => item.id);
+      expect(ids).toContain(created.id);
+    });
+
     it('filters by city', async () => {
       const tehran = await api().get('/exhibitions?city=tehran').expect(200);
       const nowhere = await api().get('/exhibitions?city=does-not-exist').expect(200);

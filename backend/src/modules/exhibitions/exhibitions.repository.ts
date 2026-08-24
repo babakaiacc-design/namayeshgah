@@ -63,6 +63,17 @@ export class ExhibitionsRepository {
    */
   private readonly localToday = `(now() AT TIME ZONE ci.timezone)::date`;
 
+  /**
+   * The end date exists only once a detail page has been fetched, and detail
+   * fetches are budgeted per sync run — so most rows carry it, but a fair
+   * share, especially further-out ones, do not yet. Comparing against
+   * `e.end_date` directly makes those rows vanish from every date-range query,
+   * since `NULL >= anything` is neither true nor false in SQL. Falling back to
+   * `start_date` treats an exhibition with an unknown end as a single day,
+   * which is the best guess the data supports and matches findStartingOn.
+   */
+  private readonly effectiveEndDate = 'COALESCE(e.end_date, e.start_date)';
+
   private baseSelect(localeParam: string): string {
     return `
       SELECT
@@ -83,7 +94,7 @@ export class ExhibitionsRepository {
         CASE WHEN e.start_date IS NULL THEN NULL
              ELSE (e.start_date - ${this.localToday}) END AS days_until,
         COALESCE(
-          e.start_date <= ${this.localToday} AND e.end_date >= ${this.localToday},
+          e.start_date <= ${this.localToday} AND ${this.effectiveEndDate} >= ${this.localToday},
           false
         ) AS is_ongoing
       FROM exhibitions e
@@ -115,7 +126,7 @@ export class ExhibitionsRepository {
     if (query.city) conditions.push(`ci.slug = ${push(query.city)}`);
     if (query.country) conditions.push(`co.iso2 = upper(${push(query.country)})`);
     if (query.venue) conditions.push(`v.slug = ${push(query.venue)}`);
-    if (query.dateFrom) conditions.push(`e.end_date >= ${push(query.dateFrom)}::date`);
+    if (query.dateFrom) conditions.push(`${this.effectiveEndDate} >= ${push(query.dateFrom)}::date`);
     if (query.dateTo) conditions.push(`e.start_date <= ${push(query.dateTo)}::date`);
     if (query.isInternational !== undefined) {
       conditions.push(`e.is_international = ${push(query.isInternational)}`);
@@ -127,14 +138,14 @@ export class ExhibitionsRepository {
     switch (query.timeframe) {
       case ExhibitionTimeframe.Ongoing:
         conditions.push(
-          `e.start_date <= ${this.localToday} AND e.end_date >= ${this.localToday}`,
+          `e.start_date <= ${this.localToday} AND ${this.effectiveEndDate} >= ${this.localToday}`,
         );
         break;
       case ExhibitionTimeframe.Upcoming:
         conditions.push(`e.start_date > ${this.localToday}`);
         break;
       case ExhibitionTimeframe.Past:
-        conditions.push(`e.end_date < ${this.localToday}`);
+        conditions.push(`${this.effectiveEndDate} < ${this.localToday}`);
         break;
       default:
         break;
