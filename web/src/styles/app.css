@@ -1085,17 +1085,20 @@ a {
 /*
  * Optional illustration.
  *
- * Drop an image at web/public/unicorn.png and it appears as a faint backdrop.
+ * Ships as public/unicorn.jpg, produced by `npm run optimize:backdrop`. The
+ * picture supplied was a 10.4 MB JPEG named .png; at that size it would have
+ * been precached by the service worker and downloaded by every visitor.
+ *
  * When the file is absent the browser simply skips this layer and the gradient
- * above carries the theme on its own, so the app never depends on an asset
- * that may not be there.
+ * above carries the theme on its own, so the app never depends on an asset that
+ * may not be there.
  */
 [data-theme='unicorn'] body::after {
   content: '';
   position: fixed;
   inset: 0;
   z-index: 0;
-  background: url('/unicorn.png') no-repeat center bottom / cover;
+  background: url('/unicorn.jpg') no-repeat center bottom / cover;
   opacity: 0.14;
   pointer-events: none;
 }
