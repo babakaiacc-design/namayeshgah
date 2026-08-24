@@ -8,6 +8,7 @@ import { LoggerModule } from 'nestjs-pino';
 import configuration from './config/configuration';
 import { validateEnv } from './config/env.validation';
 import { dataSourceOptions } from './database/data-source';
+import { DatabaseModule } from './database/database.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { JwtAuthGuard } from './modules/auth/jwt-auth.guard';
 import { ExhibitionsModule } from './modules/exhibitions/exhibitions.module';
@@ -52,6 +53,7 @@ import { SyncModule } from './modules/sync/sync.module';
 
     ThrottlerModule.forRoot([{ ttl: 60000, limit: 120 }]),
 
+    DatabaseModule,
     AuthModule,
     HealthModule,
     ExhibitionsModule,

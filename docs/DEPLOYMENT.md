@@ -47,7 +47,7 @@ Render و Vercel هر دو مستقیماً از این مخزن دیپلوی م
    - `FETCH_USER_AGENT` → یک User-Agent شناسا با آدرس تماس، طبق بند ۴۷ برنامه — مثلاً `ExhibitionReminderBot/1.0 (+mailto:you@example.com)`.
    - `CORS_ORIGINS` → فعلاً خالی بگذارید؛ بعد از مرحلهٔ ۴ برمی‌گردید و پر می‌کنید.
 3. `JWT_SECRET` و `SYNC_SECRET` را Render خودش تصادفی می‌سازد — نیازی به وارد کردن دستی نیست.
-4. Deploy کنید. اولین build چند دقیقه طول می‌کشد (شامل build بک‌اند + مهاجرت + seed).
+4. Deploy کنید. اولین build چند دقیقه طول می‌کشد (شامل build بک‌اند). مهاجرت و seed خودکار هنگام شروع اپلیکیشن اجرا می‌شوند.
 5. بعد از سبز شدن، آدرس سرویس را یادداشت کنید — چیزی مثل:
    ```
    https://exhibition-reminder-api.onrender.com

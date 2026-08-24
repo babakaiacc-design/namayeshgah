@@ -24,10 +24,6 @@ services:
     region: frankfurt
     rootDir: ./backend
     buildCommand: npm ci && npm run build
-    # Migrations and the idempotent seed run before the new instance takes
-    # traffic. The seed uses ON CONFLICT DO NOTHING/DO UPDATE throughout
-    # (src/database/seeds/run-seed.ts), so running it on every deploy is safe.
-    preDeployCommand: npm run migration:run && npm run seed
     startCommand: npm run start:prod
     healthCheckPath: /health
     envVars:
