@@ -25,7 +25,7 @@ async function bootstrap() {
   app.setGlobalPrefix(apiPrefix, { exclude: ['health'] });
 
   app.enableCors({
-    origin: isProduction ? config.get<string>('app.corsOrigins', '*') : '*',
+    origin: isProduction ? config.get<string | string[]>('app.corsOrigins', '*') : '*',
     methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
   });
 

@@ -14,6 +14,7 @@
 | `PORT` | `3000` | Render خودش این را ست می‌کند |
 | `API_PREFIX` | `api/v1` | `/health` عمداً بیرون از این prefix است |
 | `LOG_LEVEL` | `info` | در توسعه `debug` |
+| `CORS_ORIGINS` | `*` (باز) | فقط در `production` خوانده می‌شود. مبدأهای مجاز، با کاما جدا، مثلاً `https://exhibition-reminder.vercel.app`. تا وقتی فرانت دیپلوی نشده خالی بماند |
 
 ---
 

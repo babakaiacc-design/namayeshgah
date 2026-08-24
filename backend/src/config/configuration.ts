@@ -9,6 +9,12 @@ export interface AppConfig {
   port: number;
   apiPrefix: string;
   logLevel: string;
+  /**
+   * Which origins may call the API. '*' (the default) is fine while the API
+   * has no deployed frontend to protect; once the web app is public, set
+   * CORS_ORIGINS to its exact origin(s) so the API isn't open to every site.
+   */
+  corsOrigins: string | string[];
 }
 
 export interface DatabaseConfig {
@@ -60,6 +66,15 @@ const int = (value: string | undefined, fallback: number): number => {
   return Number.isNaN(parsed) ? fallback : parsed;
 };
 
+const originList = (value: string | undefined): string | string[] => {
+  if (!value) return '*';
+  const origins = value
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+  return origins.length > 0 ? origins : '*';
+};
+
 export default (): Configuration => {
   const nodeEnv = process.env.NODE_ENV ?? 'development';
 
@@ -70,6 +85,7 @@ export default (): Configuration => {
       port: int(process.env.PORT, 3000),
       apiPrefix: process.env.API_PREFIX ?? 'api/v1',
       logLevel: process.env.LOG_LEVEL ?? 'info',
+      corsOrigins: originList(process.env.CORS_ORIGINS),
     },
     database: {
       url: process.env.DATABASE_URL ?? '',

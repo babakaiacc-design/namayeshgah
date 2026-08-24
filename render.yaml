@@ -1,57 +1,72 @@
-# Render Blueprint — free tier.
+# Render Blueprint — see docs/DEPLOYMENT.md for the full walkthrough.
 #
-# Note there is deliberately no cron job or background worker here: both are
-# paid features on Render. Scheduling lives in .github/workflows/sync.yml.
-# See docs/ARCHITECTURE.md section 3.
-
+# Must live at the repo root: Render only discovers render.yaml there. rootDir
+# then points the service at backend/ since this is a monorepo (web/ is
+# deployed separately, to Vercel).
+#
+# Two envVars are intentionally left for the dashboard rather than given a
+# value here:
+#   - DATABASE_URL (sync: false): the Supabase pooler connection string.
+#     Render has no Supabase account to pull it from, and it contains a
+#     password, so it must never sit in a file committed to git.
+#   - CORS_ORIGINS (sync: false): the deployed frontend's origin. Unknown
+#     until the Vercel deploy exists, so it starts blank (the API falls back
+#     to allowing any origin — see backend/src/config/configuration.ts) and
+#     gets set once the frontend URL is known.
+#
+# JWT_SECRET and SYNC_SECRET use generateValue so Render creates a random
+# value itself; nobody ever has to copy a secret through a chat or a file.
 services:
   - type: web
     name: exhibition-reminder-api
     runtime: node
     plan: free
     region: frankfurt
-    rootDir: backend
+    rootDir: ./backend
     buildCommand: npm ci && npm run build
-    startCommand: npm run migration:run && npm run start:prod
+    # Migrations and the idempotent seed run before the new instance takes
+    # traffic. The seed uses ON CONFLICT DO NOTHING/DO UPDATE throughout
+    # (src/database/seeds/run-seed.ts), so running it on every deploy is safe.
+    preDeployCommand: npm run migration:run && npm run seed
+    startCommand: npm run start:prod
     healthCheckPath: /health
     envVars:
       - key: NODE_ENV
         value: production
+      # Render assigns and injects PORT itself; the app already reads it via
+      # config (backend/src/config/configuration.ts). Do not hardcode it here.
       - key: API_PREFIX
         value: api/v1
       - key: LOG_LEVEL
         value: info
-
-      # Supabase pooler URI (port 6543). Set in the Render dashboard.
       - key: DATABASE_URL
         sync: false
       - key: DB_SSL
-        value: 'true'
-      # MUST stay false behind the transaction-mode pooler, otherwise every
-      # query fails with "prepared statement already exists".
+        value: true
       - key: DB_PREPARE
-        value: 'false'
+        value: false
       - key: DB_POOL_SIZE
-        value: '5'
+        value: 5
       - key: DB_SYNCHRONIZE
-        value: 'false'
-
+        value: false
       - key: JWT_SECRET
         generateValue: true
       - key: JWT_EXPIRES_IN
         value: 90d
-
-      # Must match the SYNC_SECRET repository secret in GitHub Actions, so it
-      # is set by hand rather than generated.
       - key: SYNC_SECRET
+        generateValue: true
+      # Identifiable per DATA_SOURCES.md section 7 — a generic UA has no way
+      # for a site owner to reach whoever is crawling them. Prompted rather
+      # than hardcoded so the placeholder can't accidentally ship as-is.
+      - key: FETCH_USER_AGENT
         sync: false
-
       - key: FETCH_TIMEOUT_MS
-        value: '60000'
+        value: 60000
       - key: FETCH_RATE_LIMIT_PER_SEC
-        value: '1'
+        value: 1
       - key: FETCH_MAX_RETRIES
-        value: '3'
-
+        value: 3
       - key: RELAY_ENABLED
-        value: 'false'
+        value: false
+      - key: CORS_ORIGINS
+        sync: false
