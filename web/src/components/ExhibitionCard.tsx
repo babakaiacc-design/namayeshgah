@@ -30,8 +30,17 @@ export function ExhibitionCard({ exhibition }: Props) {
   const dayMonth = jalaliDayMonth(dates.start);
   const range = formatJalaliRange(dates.start, dates.end);
 
+  // A search now reaches back over a year, so most results in a list can be
+  // exhibitions that already finished. They are still worth showing — knowing
+  // when one was held is the point of searching — but they must not compete for
+  // attention with one a user can still attend.
+  const isPast = !dates.isOngoing && typeof dates.daysUntil === 'number' && dates.daysUntil < 0;
+
   return (
-    <Link className="card" to={`/exhibition/${encodeURIComponent(exhibition.slug)}`}>
+    <Link
+      className={`card${isPast ? ' card--past' : ''}`}
+      to={`/exhibition/${encodeURIComponent(exhibition.slug)}`}
+    >
       <div
         className={`card__date${dates.isOngoing ? ' card__date--live' : ''}`}
         aria-hidden="true"
@@ -58,7 +67,9 @@ export function ExhibitionCard({ exhibition }: Props) {
           {/* A countdown needs a start date, not a fully confirmed range.
               Hiding it whenever the end date is missing would throw away the
               one thing the user most wants to know. */}
-          {!dates.isOngoing && countdown && <span className="badge badge--soon">{countdown}</span>}
+          {!dates.isOngoing && countdown && (
+            <span className={`badge ${isPast ? 'badge--past' : 'badge--soon'}`}>{countdown}</span>
+          )}
 
           <DateCaveat
             status={dates.status}

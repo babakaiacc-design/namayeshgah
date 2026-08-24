@@ -298,6 +298,16 @@ a {
   background: var(--surface-2);
 }
 
+/* A finished exhibition stays fully readable — its date and venue are what the
+   user came for — but its date block drops the primary colour so a list mixing
+   history with what is coming still reads at a glance.
+   Written as .card.card--past so it also outranks the unicorn theme's gradient,
+   which is a plain [data-theme] descendant selector. */
+.card.card--past .card__date {
+  background: var(--surface-2);
+  color: var(--text-muted);
+}
+
 /* The date block is the anchor of the whole list: it lets the eye scan by
    date without reading a single word. */
 .card__date {
@@ -417,6 +427,13 @@ a {
 .badge--unknown {
   background: var(--warn-soft);
   color: var(--warn);
+}
+
+/* "برگزار شده". Neutral on purpose: an exhibition that has finished is a fact,
+   not a call to action, and it should not read as urgently as one next week. */
+.badge--past {
+  background: var(--surface-2);
+  color: var(--text-muted);
 }
 
 .badge--category {
