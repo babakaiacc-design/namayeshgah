@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 
 import { api } from '../api/client';
+import { DueReminders } from '../components/DueReminders';
 import { ExhibitionCard } from '../components/ExhibitionCard';
 import { Empty, Failed, Loading } from '../components/States';
 import { addDays, todayInZone, toPersianDigits } from '../lib/persian-date';
@@ -79,6 +80,8 @@ export function HomePage() {
 
   return (
     <>
+      <DueReminders />
+
       <h1 className="page-title">امروز چه نمایشگاهی برگزار می‌شود؟</h1>
 
       {anyLoading && <Loading rows={3} />}

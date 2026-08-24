@@ -274,3 +274,19 @@ export function describeFreshness(
   if (days === 1) return 'آخرین بررسی: دیروز';
   return `آخرین بررسی: ${toPersianDigits(days)} روز پیش`;
 }
+
+/**
+ * The day and month alone, for the date block on a card.
+ *
+ * A calendar app earns its identity from the date being a visual object rather
+ * than a line of text, so the card renders these two parts at different weights
+ * instead of one sentence.
+ */
+export function jalaliDayMonth(
+  iso: IsoDate | null | undefined,
+): { day: string; month: string } | null {
+  if (!iso) return null;
+  const parts = toJalali(iso);
+  if (!parts) return null;
+  return { day: toPersianDigits(parts.day), month: JALALI_MONTHS[parts.month - 1] };
+}

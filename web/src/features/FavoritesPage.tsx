@@ -6,19 +6,36 @@ import { Empty, Loading } from '../components/States';
 import { useFavorites } from '../lib/favorites';
 
 export function FavoritesPage() {
-  const { ids } = useFavorites();
+  const { favorites, isLoading } = useFavorites();
+
+  const exhibitionIds = favorites
+    .filter((favorite) => favorite.kind === 'exhibition' && favorite.exhibitionId)
+    .map((favorite) => favorite.exhibitionId as string);
+
+  const followedCategories = favorites.filter((favorite) => favorite.kind === 'category');
 
   const queries = useQueries({
-    queries: ids.map((id) => ({
+    queries: exhibitionIds.map((id) => ({
       queryKey: ['exhibition', id],
       queryFn: () => api.exhibition(id),
-      // Favourites are the pages most worth having offline, so they are kept
-      // far longer than the default and reused from cache aggressively.
+      // Saved items are the ones most worth having offline.
       staleTime: 30 * 60 * 1000,
     })),
   });
 
-  if (ids.length === 0) {
+  const items = queries.flatMap((query) => (query.data ? [query.data] : []));
+  const loadingItems = queries.some((query) => query.isLoading);
+
+  if (isLoading) {
+    return (
+      <>
+        <h1 className="page-title">علاقه‌مندی‌ها</h1>
+        <Loading rows={2} />
+      </>
+    );
+  }
+
+  if (favorites.length === 0) {
     return (
       <>
         <h1 className="page-title">علاقه‌مندی‌ها</h1>
@@ -30,20 +47,30 @@ export function FavoritesPage() {
     );
   }
 
-  const loading = queries.some((query) => query.isLoading);
-  const items = queries.flatMap((query) => (query.data ? [query.data] : []));
-
   return (
     <>
       <h1 className="page-title">علاقه‌مندی‌ها</h1>
 
-      {loading && items.length === 0 && <Loading rows={2} />}
+      {followedCategories.length > 0 && (
+        <section className="section">
+          <h2 className="section__title">دسته‌بندی‌های دنبال‌شده</h2>
+          <div className="chips">
+            {followedCategories.map((favorite) => (
+              <span key={favorite.id} className="chip">
+                {favorite.title}
+              </span>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {loadingItems && items.length === 0 && <Loading rows={2} />}
 
       {items.map((item) => (
         <ExhibitionCard key={item.id} exhibition={item} />
       ))}
 
-      {!loading && items.length === 0 && (
+      {!loadingItems && exhibitionIds.length > 0 && items.length === 0 && (
         <Empty
           title="نمایشگاه‌های ذخیره‌شده در دسترس نیستند"
           hint="اتصال اینترنت را بررسی کنید"

@@ -153,7 +153,12 @@ export class RemindersService {
        WHERE r.user_id = $1 AND r.is_active AND NOT r.is_sent
          AND r.remind_at IS NOT NULL AND r.remind_at <= now()
          -- An exhibition that already finished is no longer worth announcing.
-         AND (e.end_date IS NULL OR e.end_date >= (now() AT TIME ZONE ci.timezone)::date)
+         -- When no end date was published, the start date is the last day we
+         -- actually know about, and using it invents nothing. A reminder fires
+         -- BEFORE the start anyway, so by the time the start has passed it has
+         -- already done its job; without this an undated exhibition from months
+         -- ago would sit in the due list forever.
+         AND COALESCE(e.end_date, e.start_date) >= (now() AT TIME ZONE ci.timezone)::date
        ORDER BY r.remind_at`,
       [userId],
     );

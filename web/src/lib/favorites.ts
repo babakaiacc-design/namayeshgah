@@ -1,60 +1,108 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useRef } from 'react';
 
-const STORAGE_KEY = 'exhibition-reminder:favorites';
+import { api } from '../api/client';
+import type { Favorite } from '../api/types';
+import { ensureSignedIn, hasAccount } from './auth';
+
+const LEGACY_KEY = 'exhibition-reminder:favorites';
 
 /**
- * Favourites kept on the device.
+ * Favourites, held on the server against the anonymous device account.
  *
- * Deliberately local for now. The server already has the tables and the
- * anonymous device account, but the write endpoints land with the reminder
- * work; keeping the data in one well-known key means the sync can adopt it
- * later without the user losing anything they saved in the meantime.
+ * An earlier build kept them in localStorage. Those entries are migrated on
+ * first use rather than abandoned, so nobody loses what they saved before the
+ * endpoints existed.
  */
-function read(): string[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    const parsed = raw ? JSON.parse(raw) : [];
-    return Array.isArray(parsed) ? parsed.filter((id) => typeof id === 'string') : [];
-  } catch {
-    // A corrupted or unavailable store must not break the page.
-    return [];
-  }
-}
-
-function write(ids: string[]): void {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(ids));
-  } catch {
-    // Private browsing on iOS can refuse writes; the UI stays usable.
-  }
-  window.dispatchEvent(new CustomEvent('favorites-changed'));
-}
-
 export function useFavorites() {
-  const [ids, setIds] = useState<string[]>(read);
+  const queryClient = useQueryClient();
+  const migrated = useRef(false);
+
+  const query = useQuery({
+    queryKey: ['favorites'],
+    queryFn: async () => {
+      await ensureSignedIn();
+      return api.favorites();
+    },
+    // Signing in just to read an empty list would create an account for a
+    // visitor who has not asked for one.
+    enabled: hasAccount(),
+    staleTime: 60_000,
+  });
 
   useEffect(() => {
-    const sync = () => setIds(read());
-    // Both events matter: 'storage' covers another tab, the custom event
-    // covers another component in this one.
-    window.addEventListener('storage', sync);
-    window.addEventListener('favorites-changed', sync);
-    return () => {
-      window.removeEventListener('storage', sync);
-      window.removeEventListener('favorites-changed', sync);
-    };
-  }, []);
+    if (migrated.current || !query.data) return;
+    migrated.current = true;
+    void migrateLegacy(query.data, queryClient);
+  }, [query.data, queryClient]);
 
-  const toggle = useCallback((id: string) => {
-    const current = read();
-    const next = current.includes(id)
-      ? current.filter((candidate) => candidate !== id)
-      : [...current, id];
-    write(next);
-    setIds(next);
-  }, []);
+  const add = useMutation({
+    mutationFn: async (exhibitionId: string) => {
+      await ensureSignedIn();
+      return api.addFavorite({ exhibitionId });
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['favorites'] }),
+  });
 
-  const isFavorite = useCallback((id: string) => ids.includes(id), [ids]);
+  const remove = useMutation({
+    mutationFn: async (favoriteId: string) => {
+      await ensureSignedIn();
+      return api.removeFavorite(favoriteId);
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['favorites'] }),
+  });
 
-  return { ids, toggle, isFavorite };
+  const favorites = query.data ?? [];
+
+  const findFor = (exhibitionId: string): Favorite | undefined =>
+    favorites.find((favorite) => favorite.exhibitionId === exhibitionId);
+
+  return {
+    favorites,
+    isLoading: query.isLoading,
+    isFavorite: (exhibitionId: string) => Boolean(findFor(exhibitionId)),
+    isPending: add.isPending || remove.isPending,
+    toggle: async (exhibitionId: string) => {
+      const existing = findFor(exhibitionId);
+      if (existing) await remove.mutateAsync(existing.id);
+      else await add.mutateAsync(exhibitionId);
+    },
+  };
+}
+
+async function migrateLegacy(
+  current: Favorite[],
+  queryClient: ReturnType<typeof useQueryClient>,
+): Promise<void> {
+  let legacy: string[] = [];
+  try {
+    const raw = localStorage.getItem(LEGACY_KEY);
+    if (!raw) return;
+    const parsed = JSON.parse(raw);
+    legacy = Array.isArray(parsed) ? parsed.filter((id) => typeof id === 'string') : [];
+  } catch {
+    return;
+  }
+
+  const known = new Set(current.map((favorite) => favorite.exhibitionId));
+  const pending = legacy.filter((id) => !known.has(id));
+
+  for (const exhibitionId of pending) {
+    try {
+      await api.addFavorite({ exhibitionId });
+    } catch {
+      // An exhibition that has since been merged away is simply dropped; one
+      // stale id must not stop the rest migrating.
+    }
+  }
+
+  try {
+    localStorage.removeItem(LEGACY_KEY);
+  } catch {
+    /* ignored */
+  }
+
+  if (pending.length > 0) {
+    await queryClient.invalidateQueries({ queryKey: ['favorites'] });
+  }
 }

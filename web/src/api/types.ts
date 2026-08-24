@@ -126,3 +126,38 @@ export interface ExhibitionQuery {
   limit?: number;
   offset?: number;
 }
+
+export type ReminderType =
+  | 'DAYS_30'
+  | 'DAYS_14'
+  | 'DAYS_7'
+  | 'DAYS_3'
+  | 'DAYS_1'
+  | 'START_DAY'
+  | 'CUSTOM';
+
+export interface Reminder {
+  id: string;
+  exhibitionId: string;
+  exhibitionTitle: string;
+  type: ReminderType;
+  offsetDays: number;
+  offsetTime: string;
+  /** Null while the exhibition date is still UNKNOWN. */
+  remindAt: string | null;
+  exhibitionStart: string | null;
+  timezone: string;
+  isActive: boolean;
+  isSent: boolean;
+  createdAt: string;
+}
+
+export interface Favorite {
+  id: string;
+  kind: 'exhibition' | 'category';
+  exhibitionId: string | null;
+  categoryId: string | null;
+  title: string;
+  slug: string;
+  createdAt: string;
+}

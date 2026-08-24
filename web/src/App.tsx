@@ -1,5 +1,6 @@
 import { NavLink, Route, Routes } from 'react-router-dom';
 
+import { Icon, type IconName } from './components/Icon';
 import { useOnline } from './lib/useOnline';
 import { CalendarPage } from './features/CalendarPage';
 import { DetailPage } from './features/DetailPage';
@@ -8,12 +9,12 @@ import { HomePage } from './features/HomePage';
 import { ProfilePage } from './features/ProfilePage';
 import { SearchPage } from './features/SearchPage';
 
-const NAV = [
-  { to: '/', label: 'خانه', icon: '⌂' },
-  { to: '/calendar', label: 'تقویم', icon: '▤' },
-  { to: '/search', label: 'جستجو', icon: '⌕' },
-  { to: '/favorites', label: 'علاقه‌مندی‌ها', icon: '♡' },
-  { to: '/profile', label: 'پروفایل', icon: '☺' },
+const NAV: Array<{ to: string; label: string; icon: IconName }> = [
+  { to: '/', label: 'خانه', icon: 'home' },
+  { to: '/calendar', label: 'تقویم', icon: 'calendar' },
+  { to: '/search', label: 'جستجو', icon: 'search' },
+  { to: '/favorites', label: 'ذخیره‌ها', icon: 'heart' },
+  { to: '/profile', label: 'پروفایل', icon: 'user' },
 ];
 
 export function App() {
@@ -47,10 +48,8 @@ export function App() {
             className="nav__item"
             aria-label={item.label}
           >
-            <span className="nav__icon" aria-hidden="true">
-              {item.icon}
-            </span>
-            <span>{item.label}</span>
+            <Icon name={item.icon} size="lg" />
+            <span className="nav__label">{item.label}</span>
           </NavLink>
         ))}
       </nav>

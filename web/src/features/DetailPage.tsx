@@ -4,6 +4,8 @@ import { Link, useParams } from 'react-router-dom';
 import { api } from '../api/client';
 import type { ExhibitionDetail } from '../api/types';
 import { Failed, Loading } from '../components/States';
+import { Icon } from '../components/Icon';
+import { ReminderPicker } from '../components/ReminderPicker';
 import { useFavorites } from '../lib/favorites';
 import {
   describeFreshness,
@@ -13,7 +15,7 @@ import {
 
 export function DetailPage() {
   const { idOrSlug } = useParams<{ idOrSlug: string }>();
-  const { isFavorite, toggle } = useFavorites();
+  const { isFavorite, toggle, isPending: favoritePending } = useFavorites();
 
   const query = useQuery({
     queryKey: ['exhibition', idOrSlug],
@@ -31,6 +33,7 @@ export function DetailPage() {
   return (
     <article>
       <Link to="/" className="back-link">
+        <Icon name="chevron-start" size="sm" />
         بازگشت
       </Link>
 
@@ -61,9 +64,11 @@ export function DetailPage() {
         <button
           type="button"
           className={`action${favorite ? ' action--active' : ''}`}
-          onClick={() => toggle(exhibition.id)}
+          disabled={favoritePending}
+          onClick={() => void toggle(exhibition.id)}
         >
-          {favorite ? '♥ در علاقه‌مندی‌ها' : '♡ افزودن به علاقه‌مندی‌ها'}
+          <Icon name={favorite ? 'heart-filled' : 'heart'} size="sm" />
+          {favorite ? 'ذخیره شد' : 'ذخیره'}
         </button>
 
         {exhibition.officialWebsite && (
@@ -73,6 +78,7 @@ export function DetailPage() {
             target="_blank"
             rel="noopener noreferrer"
           >
+            <Icon name="link" size="sm" />
             وب‌سایت رسمی
           </a>
         )}
@@ -86,12 +92,15 @@ export function DetailPage() {
             target="_blank"
             rel="noopener noreferrer"
           >
+            <Icon name="pin" size="sm" />
             مسیریابی
           </a>
         )}
 
         <ShareButton exhibition={exhibition} />
       </div>
+
+      <ReminderPicker exhibition={exhibition} />
 
       {exhibition.description && <p className="detail__description">{exhibition.description}</p>}
 
@@ -200,6 +209,7 @@ function ShareButton({ exhibition }: { exhibition: ExhibitionDetail }) {
 
   return (
     <button type="button" className="action" onClick={() => void share()}>
+      <Icon name="share" size="sm" />
       اشتراک‌گذاری
     </button>
   );

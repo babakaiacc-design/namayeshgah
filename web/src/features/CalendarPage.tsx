@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 
 import { api } from '../api/client';
+import { Icon } from '../components/Icon';
 import { ExhibitionCard } from '../components/ExhibitionCard';
 import { Empty, Failed, Loading } from '../components/States';
 import {
@@ -100,14 +101,24 @@ export function CalendarPage() {
         <div className="calendar__head">
           {/* In RTL the "previous" control sits on the right, which is what the
               arrow directions below reflect. */}
-          <button type="button" className="calendar__nav" onClick={() => move(-1)} aria-label="ماه قبل">
-            ›
+          <button
+            type="button"
+            className="calendar__nav"
+            onClick={() => move(-1)}
+            aria-label="ماه قبل"
+          >
+            <Icon name="chevron-start" size="md" />
           </button>
           <span className="calendar__title">
             {month.name} {toPersianDigits(month.year)}
           </span>
-          <button type="button" className="calendar__nav" onClick={() => move(1)} aria-label="ماه بعد">
-            ‹
+          <button
+            type="button"
+            className="calendar__nav"
+            onClick={() => move(1)}
+            aria-label="ماه بعد"
+          >
+            <Icon name="chevron-end" size="md" />
           </button>
         </div>
 

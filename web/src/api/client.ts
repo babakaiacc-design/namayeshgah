@@ -4,7 +4,10 @@ import type {
   Exhibition,
   ExhibitionDetail,
   ExhibitionQuery,
+  Favorite,
   Paginated,
+  Reminder,
+  ReminderType,
   Venue,
 } from './types';
 
@@ -69,6 +72,22 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   }
 }
 
+async function requestVoid(path: string, init: RequestInit = {}): Promise<void> {
+  const url = `${BASE_URL}${path}`;
+  const response = await fetch(url, {
+    ...init,
+    headers: {
+      ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+      ...init.headers,
+    },
+  });
+
+  // 204 carries no body, so the JSON path in request() cannot be reused here.
+  if (!response.ok) {
+    throw new ApiError(response.statusText, response.status, url);
+  }
+}
+
 function toQueryString(params: Record<string, unknown>): string {
   const search = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
@@ -116,6 +135,52 @@ export const api = {
 
   cities() {
     return request<City[]>('/cities');
+  },
+
+  reminders() {
+    return request<Reminder[]>('/reminders');
+  },
+
+  dueReminders() {
+    return request<Reminder[]>('/reminders/due');
+  },
+
+  createReminder(input: {
+    exhibitionId: string;
+    type: ReminderType;
+    offsetDays?: number;
+    offsetTime?: string;
+  }) {
+    return request<Reminder>('/reminders', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+  },
+
+  deleteReminder(id: string) {
+    return requestVoid(`/reminders/${id}`, { method: 'DELETE' });
+  },
+
+  acknowledgeReminders(ids: string[]) {
+    return request<{ acknowledged: number }>('/reminders/acknowledge', {
+      method: 'POST',
+      body: JSON.stringify({ ids }),
+    });
+  },
+
+  favorites() {
+    return request<Favorite[]>('/favorites');
+  },
+
+  addFavorite(input: { exhibitionId?: string; categoryId?: string }) {
+    return request<Favorite>('/favorites', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+  },
+
+  removeFavorite(id: string) {
+    return requestVoid(`/favorites/${id}`, { method: 'DELETE' });
   },
 
   authenticateDevice(deviceId: string, locale = 'fa', timezone = 'Asia/Tehran') {

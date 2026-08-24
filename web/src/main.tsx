@@ -4,7 +4,12 @@ import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 
 import { App } from './App';
+import { restoreSession } from './lib/auth';
 import './styles/app.css';
+
+// Attaches a stored token before React mounts, so the first request already
+// carries it rather than firing anonymously and being retried.
+restoreSession();
 
 const queryClient = new QueryClient({
   defaultOptions: {

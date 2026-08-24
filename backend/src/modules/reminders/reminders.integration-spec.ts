@@ -239,6 +239,27 @@ describe('reminders and favorites', () => {
       expect(due.body).toEqual([]);
     });
 
+    it('ignores a past exhibition whose end date was never published', async () => {
+      // Without a published end date the start date is the last day we know
+      // about. Treating "unknown end" as "still running" would leave a stale
+      // reminder in the due list indefinitely.
+      const id = await makeDue();
+      await query(
+        `UPDATE exhibitions SET start_date = current_date - 30, end_date = NULL,
+                date_status = 'UNKNOWN' WHERE id = $1`,
+        [exhibitionId],
+      );
+
+      const due = await get('/reminders/due').expect(200);
+      expect(due.body.map((r: any) => r.id)).not.toContain(id);
+
+      await query(
+        `UPDATE exhibitions SET start_date = '2026-09-11', end_date = '2026-09-14',
+                date_status = 'CONFIRMED' WHERE id = $1`,
+        [exhibitionId],
+      );
+    });
+
     it('ignores an exhibition that has already finished', async () => {
       const id = await makeDue();
       // Both ends move, because the schema rightly refuses a range whose end

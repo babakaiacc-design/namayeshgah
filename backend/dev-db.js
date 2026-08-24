@@ -5,6 +5,7 @@
  * stopped, so the API and the web app can be exercised without Docker.
  */
 const path = require('path');
+const { existsSync } = require('fs');
 const M = require('embedded-postgres');
 
 const EmbeddedPostgres = M.default || M;
@@ -21,7 +22,12 @@ const DB = 'exhibition_reminder_dev';
     initdbFlags: ['--encoding=UTF8', '--no-locale'],
   });
 
-  await pg.initialise();
+  // initdb refuses a non-empty directory, so a cluster that already exists is
+  // reused rather than rebuilt. Without this the script only ever works once,
+  // and restarting it would wipe the local data anyway.
+  const alreadyInitialised = existsSync(path.join(__dirname, '.pgdev', 'PG_VERSION'));
+  if (!alreadyInitialised) await pg.initialise();
+
   await pg.start();
   try {
     await pg.createDatabase(DB);
