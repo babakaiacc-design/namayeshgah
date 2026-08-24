@@ -1181,7 +1181,7 @@ a {
 
 /* A swatch shows what the theme looks like, which a colour name cannot. */
 .theme-option__swatch {
-  height: 46px;
+  height: 64px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
 }
@@ -1190,8 +1190,13 @@ a {
   background: linear-gradient(120deg, #f5f7fb 0%, #ffffff 48%, #2563eb 48%, #2563eb 100%);
 }
 
+/* The mascot sits on the same pink/lavender split the theme uses everywhere
+   else, so the swatch previews both the palette and the character in one
+   glance rather than making the user guess what "unicorn" means. */
 .theme-option__swatch--unicorn {
-  background: linear-gradient(120deg, #cdeef5 0%, #fbdcea 48%, #d6246e 48%, #d6246e 100%);
+  background:
+    url('/unicorn.png') no-repeat center / contain,
+    linear-gradient(120deg, #cdeef5 0%, #fbdcea 48%, #d6246e 48%, #d6246e 100%);
 }
 
 .theme-option__head {
