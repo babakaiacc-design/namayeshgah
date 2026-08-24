@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 
+import { ThemePicker } from '../components/ThemePicker';
+
 /**
  * Profile, and the honest explanation of how reminders can work on the web.
  *
@@ -54,6 +56,11 @@ export function ProfilePage() {
   return (
     <>
       <h1 className="page-title">پروفایل</h1>
+
+      <section className="section">
+        <h2 className="section__title">پوسته</h2>
+        <ThemePicker />
+      </section>
 
       <section className="section">
         <h2 className="section__title">یادآوری‌ها</h2>

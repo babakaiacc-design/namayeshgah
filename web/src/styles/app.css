@@ -86,8 +86,10 @@
   color-scheme: light dark;
 }
 
+/* Scoped with :not so the simple dark palette never overrides the unicorn
+   theme, which carries its own light and dark values below. */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme='unicorn']) {
     --bg: #0c0f16;
     --surface: #151a24;
     --surface-2: #1c2230;
@@ -979,4 +981,211 @@ a {
   overflow: hidden;
   clip-path: inset(50%);
   white-space: nowrap;
+}
+
+/* ==========================================================================
+   Unicorn theme
+   --------------------------------------------------------------------------
+   A second full palette rather than a colour swap. Only the tokens change;
+   no component knows which theme is active, which is the point of having put
+   every value behind a token in the first place.
+
+   Contrast was the constraint, not the mood. Candy pink at its prettiest fails
+   text contrast on white, so the pink used for text and borders is a deeper
+   magenta that clears 4.5:1, while the pale pinks are reserved for fills where
+   nothing has to be read.
+   ========================================================================== */
+
+[data-theme='unicorn'] {
+  --bg: #fdeef5;
+  --surface: #ffffff;
+  --surface-2: #fdeaf3;
+  --surface-3: #fad7e8;
+  --border: #f6cde0;
+  --border-strong: #eaa7c8;
+
+  /* Deep plum rather than grey: a neutral grey next to these pinks reads as
+     dirty. */
+  --text: #3d1b2e;
+  --text-muted: #6b4257;
+  --text-faint: #9a7386;
+
+  --primary: #d6246e;
+  --primary-hover: #b51c5b;
+  --on-primary: #ffffff;
+  --primary-soft: #ffe3f0;
+
+  --live: #e11d48;
+  --live-soft: #ffe1e8;
+  /* Teal picked from the sky in the reference image, dark enough to read. */
+  --soon: #0f766e;
+  --soon-soft: #d9f2ef;
+  --warn: #b45309;
+  --warn-soft: #fdf1de;
+
+  /* Rounder and softer than the simple theme: the shape carries as much of the
+     mood as the colour does. */
+  --radius-sm: 14px;
+  --radius: 22px;
+  --radius-lg: 28px;
+
+  --shadow-sm: 0 1px 2px rgb(214 36 110 / 8%);
+  --shadow: 0 4px 10px rgb(214 36 110 / 10%), 0 12px 28px rgb(214 36 110 / 8%);
+}
+
+@media (prefers-color-scheme: dark) {
+  [data-theme='unicorn'] {
+    --bg: #1a0f1c;
+    --surface: #251629;
+    --surface-2: #2f1b35;
+    --surface-3: #3b2243;
+    --border: #452b4d;
+    --border-strong: #5c3a67;
+
+    --text: #f8eaf3;
+    --text-muted: #cba9bf;
+    --text-faint: #9b7f91;
+
+    --primary: #ff92c2;
+    --primary-hover: #ffaed2;
+    --on-primary: #2b0f1e;
+    --primary-soft: #3b1c34;
+
+    --live: #ff7f9a;
+    --live-soft: #3a1622;
+    --soon: #5fe0cf;
+    --soon-soft: #10302f;
+    --warn: #f2b878;
+    --warn-soft: #33210f;
+
+    --shadow-sm: none;
+    --shadow: none;
+  }
+}
+
+/* Candy sky: teal at the top fading to pink at the ground, taken from the
+   reference image. Fixed, so it stays put while the list scrolls over it. */
+[data-theme='unicorn'] body {
+  background-image: linear-gradient(
+    180deg,
+    #cdeef5 0%,
+    #eae4f3 38%,
+    #fbdcea 72%,
+    #fdeef5 100%
+  );
+  background-attachment: fixed;
+}
+
+@media (prefers-color-scheme: dark) {
+  [data-theme='unicorn'] body {
+    background-image: linear-gradient(180deg, #12212b 0%, #1d1224 45%, #1a0f1c 100%);
+  }
+}
+
+/*
+ * Optional illustration.
+ *
+ * Drop an image at web/public/unicorn.png and it appears as a faint backdrop.
+ * When the file is absent the browser simply skips this layer and the gradient
+ * above carries the theme on its own, so the app never depends on an asset
+ * that may not be there.
+ */
+[data-theme='unicorn'] body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background: url('/unicorn.png') no-repeat center bottom / cover;
+  opacity: 0.14;
+  pointer-events: none;
+}
+
+@media (prefers-color-scheme: dark) {
+  [data-theme='unicorn'] body::after {
+    opacity: 0.2;
+  }
+}
+
+/* Content sits above the backdrop. */
+[data-theme='unicorn'] .app {
+  position: relative;
+  z-index: 1;
+}
+
+/* The date block becomes the sweetest thing on the card, which suits a theme
+   whose whole point is the mood. */
+[data-theme='unicorn'] .card__date {
+  background: linear-gradient(160deg, #ffd9ea 0%, #ffe9f3 100%);
+}
+
+[data-theme='unicorn'] .card__date--live {
+  background: linear-gradient(160deg, #ffd3dc 0%, #ffe6ea 100%);
+}
+
+[data-theme='unicorn'] .nav {
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
+}
+
+/* Theme picker ------------------------------------------------------------ */
+
+.theme-picker {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--s3);
+}
+
+.theme-option {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  padding: var(--s3);
+  background: var(--surface);
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  text-align: start;
+  transition:
+    border-color var(--t-fast) var(--ease),
+    background var(--t-fast) var(--ease);
+}
+
+.theme-option[aria-pressed='true'] {
+  border-color: var(--primary);
+}
+
+@media (hover: hover) {
+  .theme-option:hover {
+    border-color: var(--border-strong);
+  }
+}
+
+/* A swatch shows what the theme looks like, which a colour name cannot. */
+.theme-option__swatch {
+  height: 46px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+}
+
+.theme-option__swatch--simple {
+  background: linear-gradient(120deg, #f5f7fb 0%, #ffffff 48%, #2563eb 48%, #2563eb 100%);
+}
+
+.theme-option__swatch--unicorn {
+  background: linear-gradient(120deg, #cdeef5 0%, #fbdcea 48%, #d6246e 48%, #d6246e 100%);
+}
+
+.theme-option__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s2);
+  font-weight: 700;
+  font-size: 0.92rem;
+}
+
+.theme-option__desc {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.6;
+  color: var(--text-muted);
 }

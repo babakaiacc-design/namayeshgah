@@ -5,11 +5,16 @@ import { BrowserRouter } from 'react-router-dom';
 
 import { App } from './App';
 import { restoreSession } from './lib/auth';
+import { applyTheme, readTheme } from './lib/theme';
 import './styles/app.css';
 
 // Attaches a stored token before React mounts, so the first request already
 // carries it rather than firing anonymously and being retried.
 restoreSession();
+
+// Applied before React mounts, otherwise the default palette paints for a frame
+// and then flashes to the chosen one.
+applyTheme(readTheme());
 
 const queryClient = new QueryClient({
   defaultOptions: {
