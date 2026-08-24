@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 
 import { api } from '../api/client';
 import type { CategoryNode } from '../api/types';
+import { CategoryFilter } from '../components/CategoryFilter';
 import { ExhibitionCard } from '../components/ExhibitionCard';
 import { Empty, Failed, Loading } from '../components/States';
 import { toPersianDigits } from '../lib/persian-date';
@@ -60,28 +61,12 @@ export function SearchPage() {
         enterKeyHint="search"
       />
 
-      <div className="chips" role="group" aria-label="فیلتر دسته‌بندی">
-        <button
-          type="button"
-          className={`chip${category === undefined ? ' chip--active' : ''}`}
-          onClick={() => setCategory(undefined)}
-        >
-          همه
-        </button>
-        {flatCategories.map((node) => (
-          <button
-            key={node.slug}
-            type="button"
-            className={`chip${category === node.slug ? ' chip--active' : ''}`}
-            onClick={() => setCategory(category === node.slug ? undefined : node.slug)}
-          >
-            {node.nameFa}
-            {node.exhibitionCount > 0 && (
-              <span className="chip__count">{toPersianDigits(node.exhibitionCount)}</span>
-            )}
-          </button>
-        ))}
-      </div>
+      <CategoryFilter
+        categories={flatCategories}
+        selected={category}
+        onSelect={setCategory}
+      />
+
 
       {!hasQuery && (
         <Empty

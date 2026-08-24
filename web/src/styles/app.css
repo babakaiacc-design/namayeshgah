@@ -507,17 +507,27 @@ a {
   border-color: var(--primary);
 }
 
+/* Wraps rather than scrolls.
+ *
+ * The previous version was a horizontal strip with the scrollbar hidden, which
+ * left nothing on screen to say that more chips existed past the edge. Wrapping
+ * removes the problem instead of signposting it: every option is visible, and
+ * touch, mouse and keyboard all reach them the same way. */
 .chips {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--s2);
   margin-block-end: var(--s4);
-  padding-block-end: var(--s1);
-  overflow-x: auto;
-  scrollbar-width: none;
 }
 
-.chips::-webkit-scrollbar {
-  display: none;
+.filter {
+  margin-block-end: var(--s4);
+}
+
+.filter__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
 }
 
 .chip {
@@ -555,6 +565,21 @@ a {
 .chip__count {
   font-size: 0.72rem;
   opacity: 0.72;
+}
+
+/* Distinguished from the filter values it reveals: dashed, muted, and never
+   shown as selected. */
+.chip--toggle {
+  background: none;
+  border-style: dashed;
+  color: var(--text-muted);
+}
+
+@media (hover: hover) {
+  .chip--toggle:hover {
+    color: var(--primary);
+    border-color: var(--primary);
+  }
 }
 
 .chip:disabled,
