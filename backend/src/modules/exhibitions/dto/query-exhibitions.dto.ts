@@ -113,6 +113,29 @@ export class QueryExhibitionsDto extends PaginationQueryDto {
   locale?: string = 'fa';
 }
 
+/**
+ * Shared by /today and /date/:date.
+ *
+ * Both used to mix a whole-object `@Query() paging: PaginationQueryDto` with
+ * separately-decorated `@Query('city')`/`@Query('locale')` params. Under the
+ * global ValidationPipe's forbidNonWhitelisted, the whole-object decorator
+ * validates the ENTIRE querystring against PaginationQueryDto, so any request
+ * that actually passed city or locale — which is every real client — was
+ * rejected with 400 "property city should not exist". One DTO that declares
+ * every field the query can carry avoids that trap.
+ */
+export class CityQueryDto extends PaginationQueryDto {
+  @ApiPropertyOptional({ default: 'tehran' })
+  @IsOptional()
+  @IsString()
+  city?: string;
+
+  @ApiPropertyOptional({ default: 'fa' })
+  @IsOptional()
+  @IsString()
+  locale?: string = 'fa';
+}
+
 export class UpcomingQueryDto extends PaginationQueryDto {
   @ApiPropertyOptional({ default: 7, minimum: 1, maximum: 365 })
   @Type(() => Number)

@@ -1,10 +1,9 @@
 import { BadRequestException, Controller, Get, Param, Query } from '@nestjs/common';
-import { ApiOkResponse, ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { ApiOkResponse, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 
-import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 import { AllowGuest } from '../auth/jwt-auth.guard';
 import { ExhibitionDetailDto } from './dto/exhibition.dto';
-import { QueryExhibitionsDto, UpcomingQueryDto } from './dto/query-exhibitions.dto';
+import { CityQueryDto, QueryExhibitionsDto, UpcomingQueryDto } from './dto/query-exhibitions.dto';
 import { ExhibitionsService } from './exhibitions.service';
 
 /**
@@ -35,14 +34,8 @@ export class ExhibitionsController {
   @ApiOperation({
     summary: 'Exhibitions running right now, judged in the city timezone',
   })
-  @ApiQuery({ name: 'city', required: false })
-  @ApiQuery({ name: 'locale', required: false })
-  today(
-    @Query() paging: PaginationQueryDto,
-    @Query('city') city = 'tehran',
-    @Query('locale') locale = 'fa',
-  ) {
-    return this.service.today(city, locale, paging.limit, paging.offset);
+  today(@Query() query: CityQueryDto) {
+    return this.service.today(query.city ?? 'tehran', query.locale ?? 'fa', query.limit, query.offset);
   }
 
   @Get('upcoming')
@@ -54,18 +47,13 @@ export class ExhibitionsController {
   @Get('date/:date')
   @ApiOperation({ summary: 'Exhibitions open on a given Gregorian date' })
   @ApiParam({ name: 'date', example: '2026-08-31', description: 'yyyy-mm-dd' })
-  onDate(
-    @Param('date') date: string,
-    @Query() paging: PaginationQueryDto,
-    @Query('city') city = 'tehran',
-    @Query('locale') locale = 'fa',
-  ) {
+  onDate(@Param('date') date: string, @Query() query: CityQueryDto) {
     // The API speaks Gregorian ISO dates only; converting from the Jalali
     // calendar is the client's job, so no calendar maths lives on the server.
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
       throw new BadRequestException('date must be an ISO Gregorian date, yyyy-mm-dd');
     }
-    return this.service.onDate(date, city, locale, paging.limit, paging.offset);
+    return this.service.onDate(date, query.city ?? 'tehran', query.locale ?? 'fa', query.limit, query.offset);
   }
 
   @Get(':idOrSlug')

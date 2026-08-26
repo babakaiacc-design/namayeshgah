@@ -327,6 +327,16 @@ describe('public API', () => {
       }
     });
 
+    it('GET /exhibitions/today accepts the city and locale params every real client sends', async () => {
+      // Regression test: today() used to combine a whole-object
+      // @Query() paging: PaginationQueryDto with separately-decorated
+      // @Query('city')/@Query('locale') params. Under forbidNonWhitelisted
+      // that rejects ANY request carrying city or locale — which is every
+      // request the web client actually makes — with a 400 that the tests
+      // above never caught because they never passed those params.
+      await api().get('/exhibitions/today?city=tehran&locale=fa&limit=20').expect(200);
+    });
+
     it('GET /exhibitions/upcoming honours the day window', async () => {
       const response = await api().get('/exhibitions/upcoming?days=365').expect(200);
       for (const item of response.body.items) {
@@ -351,6 +361,10 @@ describe('public API', () => {
       // The API speaks Gregorian only; conversion is the client's job.
       await api().get('/exhibitions/date/1405-06-20').expect(200);
       await api().get('/exhibitions/date/۱۴۰۵-۰۶-۲۰').expect(400);
+    });
+
+    it('GET /exhibitions/date/:date accepts the city and locale params every real client sends', async () => {
+      await api().get('/exhibitions/date/2026-09-01?city=tehran&locale=fa&limit=50').expect(200);
     });
   });
 
