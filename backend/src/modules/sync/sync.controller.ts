@@ -8,6 +8,7 @@ import {
   IsObject,
   IsOptional,
   IsString,
+  IsUUID,
   Max,
   Min,
   ValidateNested,
@@ -92,6 +93,14 @@ export class ManualIngestDto {
   exhibitions!: RawExhibitionDto[];
 }
 
+export class MergeExhibitionsDto {
+  @IsUUID()
+  from!: string;
+
+  @IsUUID()
+  into!: string;
+}
+
 export class TriggerSyncDto {
   @IsOptional()
   @IsString()
@@ -159,5 +168,12 @@ export class SyncController {
   @ApiOperation({ summary: 'Ingest hand-curated exhibitions under the "manual" source' })
   manualIngest(@Body() body: ManualIngestDto) {
     return this.service.ingestManual(body.exhibitions);
+  }
+
+  @Post('merge-exhibitions')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Admin dedup: fold one exhibition into another' })
+  mergeExhibitions(@Body() body: MergeExhibitionsDto) {
+    return this.service.mergeExhibitions(body.from, body.into);
   }
 }

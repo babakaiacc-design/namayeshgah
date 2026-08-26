@@ -140,6 +140,85 @@ export class SyncService {
   }
 
   /**
+   * Admin dedup fix-up: folds one exhibition into another.
+   *
+   * Needed because the automatic matcher in IngestionService only merges when
+   * its similarity score crosses a threshold — a manual entry and an adapter
+   * record for the same real-world event can still end up as two rows if
+   * their titles are worded very differently, even with identical dates and
+   * venue. This is the same operation a future admin Review Queue (roadmap
+   * phase 5) would perform; it just has no UI yet.
+   */
+  async mergeExhibitions(fromId: string, intoId: string): Promise<{ merged: boolean }> {
+    if (fromId === intoId) return { merged: false };
+
+    return this.dataSource.transaction(async (manager) => {
+      const [[target], [source]] = await Promise.all([
+        manager.query(`SELECT id FROM exhibitions WHERE id = $1 FOR UPDATE`, [intoId]),
+        manager.query(`SELECT id FROM exhibitions WHERE id = $1 FOR UPDATE`, [fromId]),
+      ]);
+      if (!target || !source) return { merged: false };
+
+      // Fill in whatever the surviving row is missing before the losing row
+      // is gone for good.
+      await manager.query(
+        `UPDATE exhibitions e SET
+           official_website    = COALESCE(e.official_website, f.official_website),
+           image_url           = COALESCE(e.image_url, f.image_url),
+           primary_category_id = COALESCE(e.primary_category_id, f.primary_category_id),
+           organizer_id        = COALESCE(e.organizer_id, f.organizer_id),
+           venue_id            = COALESCE(e.venue_id, f.venue_id),
+           search_text         = CASE WHEN length(f.search_text) > length(e.search_text)
+                                      THEN f.search_text ELSE e.search_text END,
+           updated_at          = now()
+         FROM exhibitions f
+         WHERE e.id = $2 AND f.id = $1`,
+        [fromId, intoId],
+      );
+
+      await manager.query(
+        `UPDATE exhibition_source_records SET exhibition_id = $2 WHERE exhibition_id = $1`,
+        [fromId, intoId],
+      );
+      await manager.query(
+        `UPDATE exhibition_changes SET exhibition_id = $2 WHERE exhibition_id = $1`,
+        [fromId, intoId],
+      );
+      // exhibition_translations and exhibition_categories cascade-delete with
+      // the losing row; the surviving row already has its own of each.
+      await manager.query(`DELETE FROM exhibitions WHERE id = $1`, [fromId]);
+
+      const [row] = await manager.query(
+        `SELECT e.date_status,
+                (SELECT max(s.confidence)
+                   FROM exhibition_source_records r
+                   JOIN sources s ON s.id = r.source_id
+                  WHERE r.exhibition_id = e.id) AS best,
+                (SELECT count(DISTINCT r.source_id)
+                   FROM exhibition_source_records r
+                  WHERE r.exhibition_id = e.id
+                    AND r.source_start_date IS NOT DISTINCT FROM e.start_date
+                    AND r.source_end_date IS NOT DISTINCT FROM e.end_date) AS agreeing
+         FROM exhibitions e WHERE e.id = $1`,
+        [intoId],
+      );
+      if (row) {
+        const best = Number(row.best ?? 0.4);
+        const agreeing = Number(row.agreeing ?? 0);
+        let confidence = best;
+        if (row.date_status === 'CONFLICT') confidence = Math.min(best, 0.7);
+        else if (agreeing >= 2) confidence = Math.max(best, 0.9);
+        await manager.query(`UPDATE exhibitions SET confidence = $2 WHERE id = $1`, [
+          intoId,
+          confidence.toFixed(2),
+        ]);
+      }
+
+      return { merged: true };
+    });
+  }
+
+  /**
    * Source monitoring, section 28: what each source did on its last run and
    * whether it is currently healthy.
    */
