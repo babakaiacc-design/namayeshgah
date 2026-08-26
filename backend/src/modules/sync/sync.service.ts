@@ -4,6 +4,7 @@ import { DataSource } from 'typeorm';
 
 import { FETCHER_FACTORY, FetcherFactory } from '../../common/http/fetcher.factory';
 import { DEFAULT_LOCATIONS, buildAdapter } from '../../ingestion/adapter-registry';
+import { RawExhibition } from '../../ingestion/adapters/exhibition-source';
 import { IngestSummary, IngestionService } from '../../ingestion/ingestion.service';
 import { Normalizer } from '../../ingestion/normalizer/normalizer';
 import { DbReferenceResolver } from '../../ingestion/normalizer/reference-resolver';
@@ -118,6 +119,24 @@ export class SyncService {
     } finally {
       await this.releaseLock();
     }
+  }
+
+  /**
+   * Hand-curated exhibitions, bypassing the adapter/fetcher entirely.
+   *
+   * Exists for venues whose own site is too unstructured to scrape (see the
+   * "manual" source's notes in seed-data.ts). Goes through the same
+   * IngestionService as every adapter, so a manual entry still gets a
+   * traceable exhibition_source_records row, dedup against anything an
+   * adapter already found, and conflict detection if another source
+   * disagrees on the dates.
+   */
+  async ingestManual(raws: RawExhibition[]): Promise<IngestSummary> {
+    const ingestion = new IngestionService(
+      this.dataSource,
+      new Normalizer(new DbReferenceResolver(this.dataSource)),
+    );
+    return ingestion.ingest('manual', raws);
   }
 
   /**

@@ -332,4 +332,14 @@ export const SOURCES: SourceSeed[] = [
     isEnabled: false,
     notes: 'DNS resolves, TCP times out from outside Iran. Blocked pending the relay.',
   },
+  {
+    name: 'manual',
+    displayName: 'Manual Curation',
+    baseUrl: 'https://exhibition-reminder.internal/manual',
+    confidence: 0.85,
+    fetchMode: 'DIRECT',
+    isEnabled: false,
+    notes:
+      'Hand-entered after a human directly verified the organizer\'s own page or poster. Used for venues whose own site is too unstructured or unreliable to scrape (e.g. iranmallexhibition.com). Never run by the scheduler — ingested via POST /internal/manual-ingest.',
+  },
 ];
