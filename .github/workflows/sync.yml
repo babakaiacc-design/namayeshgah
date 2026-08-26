@@ -45,9 +45,16 @@ jobs:
 
       - name: Trigger ingestion
         run: |
-          payload='{}'
+          # maxDetailFetches is capped so one run can never run long enough to
+          # hit the timeout below: uncapped, the adapter enriches every listed
+          # exhibition one at a time at 1 req/sec (see EventroSource), which on
+          # a large or first-ever sync exceeds --max-time and gets aborted with
+          # no result recorded. 150 covers the exhibitions nearest to today
+          # (soonest-upcoming first, per the adapter's own priority order) well
+          # within budget; older/further-out ones catch up over later runs.
+          payload='{"maxDetailFetches":150}'
           if [ -n "${{ inputs.source }}" ]; then
-            payload="{\"source\":\"${{ inputs.source }}\"}"
+            payload="{\"source\":\"${{ inputs.source }}\",\"maxDetailFetches\":150}"
           fi
 
           response=$(curl -s -w '\n%{http_code}' --max-time 900 \
