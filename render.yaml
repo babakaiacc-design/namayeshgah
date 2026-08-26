@@ -23,7 +23,10 @@ services:
     plan: free
     region: frankfurt
     rootDir: ./backend
-    buildCommand: npm ci && npm run build
+    # --include=dev is required: NODE_ENV=production below makes npm ci skip
+    # devDependencies by default, but @nestjs/cli (which `nest build` needs)
+    # lives there.
+    buildCommand: npm ci --include=dev && npm run build
     startCommand: npm run start:prod
     healthCheckPath: /health
     envVars:
