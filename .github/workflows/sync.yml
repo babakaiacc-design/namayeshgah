@@ -1,10 +1,10 @@
 name: Scheduled sync
 
-# Render's free plan has neither cron jobs nor background workers, so the
-# scheduler lives here instead. This workflow does double duty: it triggers the
-# ingestion run AND keeps the stack warm — the free Render service sleeps after
-# 15 minutes idle and a free Supabase project pauses after 7 days idle.
-# See docs/ARCHITECTURE.md section 3.
+# The backend has no cron/worker of its own, so the scheduler lives here.
+# API_BASE_URL points at whichever deployment is current — see
+# docs/DEPLOYMENT.md. The "wake" step is a no-op health check against an
+# always-on host; it only mattered while API_BASE_URL pointed at a Render free
+# instance that slept after 15 minutes idle.
 
 on:
   schedule:
@@ -57,18 +57,31 @@ jobs:
             payload="{\"source\":\"${{ inputs.source }}\",\"maxDetailFetches\":150}"
           fi
 
-          response=$(curl -s -w '\n%{http_code}' --max-time 900 \
-            -X POST "${{ secrets.API_BASE_URL }}/api/v1/internal/sync" \
-            -H 'Content-Type: application/json' \
-            -H "X-Sync-Secret: ${{ secrets.SYNC_SECRET }}" \
-            -d "$payload")
+          # The backend now runs on a server whose outbound path to its
+          # database has an intermittent, unpredictable failure mode (some
+          # connections to the DB provider's pooler silently hang and time
+          # out — confirmed directly, and self-resolves on the next attempt).
+          # A sync call landing during one of those windows fails with a 500
+          # that has nothing to do with the sync itself, so retry a few times
+          # before treating it as a real failure.
+          for attempt in 1 2 3; do
+            response=$(curl -s -w '\n%{http_code}' --max-time 900 \
+              -X POST "${{ secrets.API_BASE_URL }}/api/v1/internal/sync" \
+              -H 'Content-Type: application/json' \
+              -H "X-Sync-Secret: ${{ secrets.SYNC_SECRET }}" \
+              -d "$payload")
 
-          body=$(echo "$response" | sed '$d')
-          code=$(echo "$response" | tail -n1)
+            body=$(echo "$response" | sed '$d')
+            code=$(echo "$response" | tail -n1)
 
-          echo "HTTP $code"
-          echo "$body"
+            echo "attempt $attempt -> HTTP $code"
+            echo "$body"
 
-          if [ "$code" != "200" ] && [ "$code" != "201" ]; then
-            exit 1
-          fi
+            if [ "$code" = "200" ] || [ "$code" = "201" ]; then
+              exit 0
+            fi
+
+            [ "$attempt" -lt 3 ] && sleep 15
+          done
+
+          exit 1

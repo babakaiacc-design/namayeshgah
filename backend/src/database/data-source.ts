@@ -29,6 +29,13 @@ export const dataSourceOptions: DataSourceOptions = {
     max: Number.parseInt(process.env.DB_POOL_SIZE ?? '10', 10),
     // See docs/ARCHITECTURE.md section 3 — must be false behind Supabase's pooler.
     prepare: bool(process.env.DB_PREPARE, true),
+    // Supabase's pooler hostname resolves to several IPs, and not every path
+    // to every one of them is reliable from every network (seen directly: one
+    // of three IPs silently drops the initial SSLRequest packet from this
+    // host, forever, with no error — pg has no default connection timeout, so
+    // without this a connection landing on that IP hangs permanently instead
+    // of failing and letting TypeORM's retryAttempts try again on another IP.
+    connectionTimeoutMillis: 6000,
   },
 };
 

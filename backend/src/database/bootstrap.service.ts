@@ -32,6 +32,44 @@ export class BootstrapService {
         this.logger.error('[bootstrap] failed', error);
         throw error; // fail fast; app should not boot with broken DB
       }
+
+      await this.warmPool();
+    }
+  }
+
+  /**
+   * Pre-establishes the connection pool at startup instead of leaving pg-pool
+   * to open connections lazily on the first requests that need them.
+   *
+   * Some networks — this one included — resolve the pooler hostname to
+   * several IPs where individual ones intermittently and unpredictably stop
+   * responding to new connections (observed directly: the same IP fails once,
+   * then succeeds on the very next attempt). A request that happens to need a
+   * fresh connection during one of those windows waits out the full
+   * connectionTimeoutMillis before failing. Warming the pool here, with
+   * retries, means that stall happens at boot — where a few extra seconds is
+   * fine — rather than on a real request.
+   */
+  private async warmPool(): Promise<void> {
+    const poolSize = Number.parseInt(process.env.DB_POOL_SIZE ?? '5', 10);
+    const results = await Promise.allSettled(
+      Array.from({ length: poolSize }, () => this.warmOneConnection()),
+    );
+    const ready = results.filter((r) => r.status === 'fulfilled').length;
+    this.logger.log(`[bootstrap] connection pool warmed: ${ready}/${poolSize} ready`);
+  }
+
+  private async warmOneConnection(attempts = 3): Promise<void> {
+    for (let attempt = 1; attempt <= attempts; attempt += 1) {
+      try {
+        await this.dataSource.query('SELECT 1');
+        return;
+      } catch (error) {
+        if (attempt === attempts) {
+          this.logger.warn(`[bootstrap] a pool connection failed after ${attempts} attempts`, error);
+          return; // non-fatal: the pool just runs one connection short
+        }
+      }
     }
   }
 }
