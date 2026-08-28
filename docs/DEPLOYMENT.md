@@ -1,118 +1,144 @@
 # DEPLOYMENT.md
 
-راهنمای انتشار عمومی: Backend روی Render، وب‌اپ روی Vercel، دیتابیس روی Supabase.
+راهنمای انتشار: همه‌چیز (وب، بک‌اند، دیتابیس) روی یک سرور اختصاصی (`arastehgostar`)، پشت nginx، با دامنهٔ `fairalarm.ir`.
 
-> این مراحل نیاز به حساب کاربری روی چهار سرویس دارند (GitHub، Supabase، Render، Vercel).
-> ساخت حساب و لاگین کردن کاری است که فقط خودتان می‌توانید انجام دهید — من به این
-> حساب‌ها دسترسی ندارم. آنچه از قبل آماده شده: `render.yaml` (Blueprint کامل بک‌اند)،
-> `web/vercel.json` (routing برای SPA)، و متغیر `CORS_ORIGINS`. با این‌ها، هر چهار
-> مرحلهٔ زیر مجموعاً حدود ۲۰-۳۰ دقیقه طول می‌کشد.
+> این پروژه قبلاً روی Render + Vercel + Supabase مستقر بود. به این دلیل که سرور اصلی در
+> ایران است و مسیر شبکه به هر سرویس ابری خارجی (از جمله Supabase) یک ناپایداری متناوب
+> و غیرقابل‌پیش‌بینی دارد — در سطح بسته‌های شبکه تأیید شده: بعضی اتصالات بی‌صدا drop
+> می‌شوند و دقیقاً همان تلاش در دفعهٔ بعد موفق است — همه‌چیز به همین سرور منتقل شد تا
+> این مسیر بین‌المللی اصلاً درگیر نشود.
 
 ---
 
-## ۱. GitHub — ساخت مخزن و push
+## معماری
 
-الان هیچ remote‌ای تنظیم نیست؛ پروژه فقط محلی است.
+```
+                 nginx (fairalarm.ir, SSL واقعی)
+                        │
+        ┌───────────────┼────────────────┐
+        │                                │
+   /  (استاتیک)                    /api/v1/  و  /health
+        │                                │
+/var/www/exhibition-reminder     127.0.0.1:3001
+   (خروجی build وب)                      │
+                              کانتینر Docker: exhibition-reminder-api
+                                           │
+                              کانتینر Docker: exhibition-reminder-db
+                                   (Postgres 17، self-hosted)
+```
 
-1. یک مخزن خصوصی یا عمومی جدید در GitHub بسازید (بدون README/gitignore — این پروژه از قبل دارد).
-2. remote را اضافه و push کنید:
+هیچ بخشی از این مسیر از مرز شبکهٔ ایران خارج نمی‌شود، به‌جز خود Sync (که عمداً به سایت‌های ایرانی مثل eventro.ir وصل می‌شود — همان چیزی که باید).
+
+---
+
+## دسترسی
 
 ```bash
-git remote add origin https://github.com/YOUR_GITHUB_USER/exhibition-reminder.git
-git branch -M main
-git push -u origin main
+ssh arastehgostar
 ```
 
-Render و Vercel هر دو مستقیماً از این مخزن دیپلوی می‌کنند.
+مسیرها روی سرور:
+- وب استاتیک: `/var/www/exhibition-reminder/`
+- بک‌اند + دیتابیس (docker compose): `/opt/apps/exhibition-reminder-api/`
+- `.env` (commit نمی‌شود، فقط روی سرور): `/opt/apps/exhibition-reminder-api/.env`
+- nginx vhost: `/etc/nginx/sites-available/exhibition-reminder.conf`
+- backupهای روزانهٔ دیتابیس: `/opt/apps/exhibition-reminder-api/backups/`
 
 ---
 
-## ۲. Supabase — دیتابیس
+## استقرار اولیه (یک‌بار انجام شده، فقط برای مرجع)
 
-1. در [supabase.com](https://supabase.com) پروژهٔ رایگان جدید بسازید (یک رمز عبور دیتابیس تعیین می‌کنید — جایی یادداشت کنید).
-2. **Project Settings → Database → Connection string → Transaction pooler** را باز کنید (پورت `6543`، **نه** `5432` مستقیم — دلیلش در [ARCHITECTURE.md](ARCHITECTURE.md) بخش ۳ است).
-3. آدرس را برای مرحلهٔ بعد نگه دارید؛ شبیه این است:
-   ```
-   postgresql://postgres.XXXXXXXX:YOUR-PASSWORD@aws-0-REGION.pooler.supabase.com:6543/postgres
-   ```
-4. مهاجرت‌ها و seed در `preDeployCommand` خود Render اجرا می‌شوند (مرحلهٔ ۳) — نیازی به اجرای دستی از همین‌جا نیست.
+1. **وب:** `cd web && npm ci && npm run build` سپس `dist/` را با `scp` به `/var/www/exhibition-reminder/` منتقل کنید (بدون نیاز به `VITE_API_URL` — فرانت به‌صورت پیش‌فرض به مسیر نسبی `/api/v1` وصل می‌شود).
+2. **بک‌اند:** `backend/Dockerfile` (multi-stage) + `docker-compose.yml` روی سرور (نه در ریپو، چون شامل جزئیات زیرساخت است) دو سرویس تعریف می‌کند: `db` (Postgres 17) و `api` (NestJS).
+3. **دیتابیس:** مهاجرت‌ها و seed خودکار هنگام بوت اپلیکیشن اجرا می‌شوند (`BootstrapService`) — نیازی به اجرای دستی نیست.
+4. **nginx:** یک vhost با دو بخش — `location /` برای فایل‌های استاتیک، `location /api/v1/` و `/health` برای proxy به `127.0.0.1:3001`. مسیر `location = /api/v1/internal/sync` به‌طور جداگانه timeout بلندتری (۹۰۰ ثانیه) دارد چون Sync می‌تواند طول بکشد.
+5. **SSL:** `certbot --nginx -d fairalarm.ir -d www.fairalarm.ir` بعد از این‌که DNS واقعاً propagate شد.
 
 ---
 
-## ۳. Render — Backend (Blueprint)
+## به‌روزرسانی بعد از تغییر کد
 
-1. در داشبورد Render: **New → Blueprint** → مخزن GitHub را انتخاب کنید. Render خودش `render.yaml` را در ریشهٔ مخزن پیدا می‌کند.
-2. هنگام ساخت، Render برای سه متغیری که `sync: false` دارند مقدار می‌خواهد:
-   - `DATABASE_URL` → همان connection string پولر از مرحلهٔ ۲.
-   - `FETCH_USER_AGENT` → یک User-Agent شناسا با آدرس تماس، طبق بند ۴۷ برنامه — مثلاً `ExhibitionReminderBot/1.0 (+mailto:you@example.com)`.
-   - `CORS_ORIGINS` → فعلاً خالی بگذارید؛ بعد از مرحلهٔ ۴ برمی‌گردید و پر می‌کنید.
-3. `JWT_SECRET` و `SYNC_SECRET` را Render خودش تصادفی می‌سازد — نیازی به وارد کردن دستی نیست.
-4. Deploy کنید. اولین build چند دقیقه طول می‌کشد (شامل build بک‌اند). مهاجرت و seed خودکار هنگام شروع اپلیکیشن اجرا می‌شوند.
-5. بعد از سبز شدن، آدرس سرویس را یادداشت کنید — چیزی مثل:
-   ```
-   https://exhibition-reminder-api.onrender.com
-   ```
-6. بررسی سلامت:
-   ```bash
-   curl https://exhibition-reminder-api.onrender.com/health
-   ```
-   باید `{"status":"ok","database":"up"}` برگرداند.
+هیچ CI/CD خودکاری وصل نیست (بر خلاف Render/Vercel قبلی) — انتشار دستی است:
 
-> پلن رایگان Render بعد از ۱۵ دقیقه بی‌کاری می‌خوابد و بیدارشدنش ~۵۰ ثانیه طول می‌کشد.
-> این طبیعی است — کلاینت وب برای همین اول کش را نشان می‌دهد.
+### وب
 
----
-
-## ۴. Vercel — وب‌اپ
-
-1. در داشبورد Vercel: **Add New → Project** → همان مخزن GitHub.
-2. **Root Directory** را روی `web` بگذارید (این یک مونو-رپو است؛ Vercel باقی تنظیمات Vite را خودش تشخیص می‌دهد).
-3. یک Environment Variable اضافه کنید:
-   - `VITE_API_URL` = آدرس Render + پیشوند نسخه، مثلاً:
-     ```
-     https://exhibition-reminder-api.onrender.com/api/v1
-     ```
-4. Deploy کنید. آدرس نهایی چیزی مثل `https://exhibition-reminder.vercel.app` خواهد بود.
-
-### برگشت به Render برای بستن CORS
-
-حالا که آدرس Vercel معلوم است، به Render برگردید → سرویس → Environment → `CORS_ORIGINS` را ست کنید:
-
-```
-https://exhibition-reminder.vercel.app
+```bash
+cd web && npm ci && npm run build
+scp -r dist/* arastehgostar:/var/www/exhibition-reminder/
 ```
 
-(چند مبدأ را با کاما جدا کنید، مثلاً دامنهٔ سفارشی به‌علاوهٔ preview URL.) ذخیره کردن یک redeploy خودکار می‌زند.
+### بک‌اند
 
-بدون این مرحله هم اپ کار می‌کند — `CORS_ORIGINS` خالی یعنی API برای هر مبدأیی باز است — ولی بعد از اینکه فرانت واقعی دیپلوی شد، بستنش به آن یک مبدأ منطقی است.
+```bash
+# کد جدید را روی سرور بگذارید (rsync/scp به backend/)، سپس:
+ssh arastehgostar "cd /opt/apps/exhibition-reminder-api && docker compose build && docker compose up -d"
+```
+
+> **نکتهٔ مهم:** `docker compose build` گاهی به‌خاطر ناپایداری شبکهٔ ایران به Docker Hub
+> در تلاش اول شکست می‌خورد (معمولاً روی احراز هویت token یا یک لایهٔ حجیم). این را با
+> **دوباره اجرا کردن همان دستور** رفع کنید — معمولاً در تلاش دوم یا سوم موفق می‌شود.
+> یک bridge محلی (`docker-tls-bridge`, سرویس systemd مبتنی بر mitmproxy روی پورت
+> ۸۰۸۰) از قبل برای دور زدن یک مسدودی خاص TLS تنظیم شده؛ دست نزنید مگر لازم شود.
 
 ---
 
-## ۵. GitHub Actions — همگام‌سازی زمان‌بندی‌شده
+## دیتابیس: Postgres Self-Hosted
 
-`.github/workflows/sync.yml` هر ۱۲ ساعت اجرا می‌شود و هم Sync را می‌زند هم سرویس رایگان Render/Supabase را بیدار نگه می‌دارد. دو Secret مخزن لازم دارد:
+- Image: `postgres:17-alpine` (باید با نسخهٔ واقعی همخوان نگه داشته شود اگر عوض شد)
+- رمز عبور در `.env` روی سرور، کلید `POSTGRES_PASSWORD`
+- اتصال از داخل بک‌اند: `postgresql://postgres:<پسورد>@db:5432/exhibition_reminder` (نام سرویس `db` در شبکهٔ داخلی Docker Compose)
+- `DB_SSL=false`, `DB_PREPARE=true` (بدون Pooler، تلهٔ Supabase دیگر وجود ندارد)
 
-**Settings → Secrets and variables → Actions → New repository secret:**
+### Backup
+
+اسکریپت `/opt/apps/exhibition-reminder-api/backup.sh` هر شب ساعت ۰۲:۱۷ (cron) یک `pg_dump` می‌گیرد و در `backups/` ذخیره می‌کند؛ فایل‌های قدیمی‌تر از ۱۴ روز پاک می‌شوند. برای بازیابی:
+
+```bash
+docker exec -i exhibition-reminder-db psql -U postgres -d exhibition_reminder < backups/exhibition_reminder_YYYY-MM-DD.dump
+```
+
+(یا با `pg_restore -F c` اگر فرمت custom باشد.)
+
+---
+
+## GitHub Actions — همگام‌سازی زمان‌بندی‌شده
+
+`.github/workflows/sync.yml` هر ۱۲ ساعت `POST /api/v1/internal/sync` می‌زند و روی خطای گذرا (مثلاً یک اتصال دیتابیس ناموفق تصادفی) تا ۳ بار retry می‌کند.
+
+**Settings → Secrets and variables → Actions:**
 
 | نام Secret | مقدار |
 |---|---|
-| `API_BASE_URL` | آدرس خام Render، **بدون** مسیر یا `/` انتهایی — مثلاً `https://exhibition-reminder-api.onrender.com` |
-| `SYNC_SECRET` | همان مقداری که Render برای `SYNC_SECRET` تصادفی ساخت (Render → سرویس → Environment → مقدار را کپی کنید) |
+| `API_BASE_URL` | `https://fairalarm.ir` (یا موقتاً `https://exhibition-reminder.171-22-26-103.sslip.io` تا دامنه فعال شود) |
+| `SYNC_SECRET` | همان مقدار `SYNC_SECRET` در `.env` روی سرور |
 
-برای تست فوری بدون منتظر ماندن تا کرون بعدی: **Actions → Scheduled sync → Run workflow**.
+برای تست فوری: **Actions → Scheduled sync → Run workflow**.
 
 ---
 
-## ۶. بررسی نهایی
+## بررسی نهایی
 
-- [ ] `curl https://<render-url>/health` → `200`
-- [ ] باز کردن آدرس Vercel در مرورگر → لیست نمایشگاه‌ها لود می‌شود
-- [ ] یک مسیر داخلی را مستقیم رفرش کنید (مثلاً `/calendar`) → نباید ۴۰۴ بدهد (این را `web/vercel.json` تضمین می‌کند)
+- [ ] `curl https://fairalarm.ir/health` → `{"status":"ok","database":"up"}`
+- [ ] باز کردن `https://fairalarm.ir` در مرورگر → لیست نمایشگاه‌ها لود می‌شود
+- [ ] `curl https://fairalarm.ir/api/v1/exhibitions/today?city=tehran` → داده واقعی
 - [ ] `Actions → Scheduled sync` یک بار دستی اجرا و سبز شود
 - [ ] در آیفون: صفحه را در Safari باز کنید → Share → Add to Home Screen
 
 ---
 
-## به‌روزرسانی بعدی
+## DNS (وقتی دامنه تأیید شد)
 
-هر push به شاخهٔ `main` هم Render و هم Vercel را خودکار دوباره دیپلوی می‌کند — کار دستی دیگری لازم نیست.
+در پنل دامنهٔ `fairalarm.ir`:
+
+```
+A    @      171.22.26.103
+A    www    171.22.26.103
+```
+
+بعد از propagate شدن (`dig fairalarm.ir` یا `nslookup`):
+
+```bash
+ssh arastehgostar "certbot --nginx --register-unsafely-without-email -d fairalarm.ir -d www.fairalarm.ir"
+```
+
+و `server_name` در nginx vhost از قبل هر دو دامنه را دارد — نیازی به ویرایش دستی نیست.

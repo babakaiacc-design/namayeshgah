@@ -98,17 +98,17 @@ openssl rand -hex 32
 
 | Secret | مقدار |
 |---|---|
-| `API_BASE_URL` | مثلاً `https://exhibition-reminder-api.onrender.com` |
-| `SYNC_SECRET` | دقیقاً همان مقدار Render |
+| `API_BASE_URL` | `https://fairalarm.ir` |
+| `SYNC_SECRET` | دقیقاً همان مقدار در `.env` روی سرور اختصاصی |
 
 ---
 
 ## چک‌لیست استقرار
 
-- [ ] پروژهٔ Supabase ساخته شد و **رشتهٔ Pooler** (پورت `6543`) برداشته شد
-- [ ] افزونه‌های `pg_trgm` و `unaccent` فعال شدند
-- [ ] `DATABASE_URL` و `SYNC_SECRET` در Render ست شدند
-- [ ] `DB_PREPARE=false` و `DB_SSL=true` در Render
-- [ ] `API_BASE_URL` و `SYNC_SECRET` در GitHub secrets
+جزئیات کامل در [DEPLOYMENT.md](DEPLOYMENT.md). خلاصه:
+
+- [ ] Postgres self-hosted روی سرور بالاست (`docker compose up -d db`)
+- [ ] `DB_PREPARE=true` و `DB_SSL=false` (بدون Pooler، این محدودیت وجود ندارد)
+- [ ] `API_BASE_URL` و `SYNC_SECRET` در GitHub secrets به‌روزند
 - [ ] `/health` جواب `{"status":"ok","database":"up"}` می‌دهد
 - [ ] اجرای دستی workflow با `workflow_dispatch` موفق است
